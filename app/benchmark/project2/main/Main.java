@@ -1,10 +1,13 @@
 package app.benchmark.project2.main;
 
 public class Main{
+    public static String name = "ali";
+    public int age = 19;
+    private int height  = 190;
     public static void main(String[] args) {
         int temp=0;
         for (int i = 0; i < 100; i++) {
-            for (int j = i; j < args.length; j++) {
+            for (int j = i; j < 100; j++) {
                 temp++;
             }
         }

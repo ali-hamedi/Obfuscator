@@ -7,8 +7,7 @@ from peewee import (
     CharField,
     IntegerField,
     ForeignKeyField,
-    EnumField,
-    JSONField,
+    TextField,
 )
 
 # Connect to db
@@ -20,11 +19,25 @@ class Entity(Model):
     name = CharField()
     fileName = CharField()
     line = IntegerField()
-    kind = EnumField(choices=["class","interface","enum","const","var", "method", "obj","generic"])
+
+    KIND_CHOICES = [
+        "class",
+        "field",
+        "method",
+        "formalParameter",
+        "localVariable",
+    ]
+    kind = CharField(choices=KIND_CHOICES)
     parent = ForeignKeyField("self", backref="children", null=True)
     varOrReturnType = CharField()
-    value = CharField()
-    metadata = JSONField()
+    value = CharField(null=True)
+    metadata = TextField()  # Use TextField to store JSON-formatted data
 
     class Meta:
-        database = db
+        database = db  # Assuming 'db' is your Peewee database instance
+
+    def set_metadata(self, data):
+        self.metadata = json.dumps(data)
+
+    def get_metadata(self):
+        return json.loads(self.metadata)

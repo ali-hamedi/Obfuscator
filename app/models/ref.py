@@ -9,23 +9,34 @@ from peewee import (
     CharField,
     IntegerField,
     ForeignKeyField,
-    EnumField,
+    TextField,
 )
 
 # Import the Entity model
-from models.entities import Entity  
+from models.ent import Entity
 
 # Connect to db
 db = SqliteDatabase("obfuscator.db")
+
 
 # Refrence Model
 class Reference(Model):
     name = CharField()
     fileName = CharField()
     line = IntegerField()
-    typeOfReference = EnumField(choices=["call", "use","memeberAccess"])
+
+    TYPE_CHOICES = ["call", "use", "memeberAccess"]
+    typeOfReference = CharField(choices=TYPE_CHOICES)
+
     value = CharField()
     owner = ForeignKeyField(Entity, backref="references", null=True)
+    metadata = TextField()  # Use TextField to store JSON-formatted data
 
     class Meta:
-        database = db
+        database = db  # Assuming 'db' is your Peewee database instance
+
+    def set_metadata(self, data):
+        self.metadata = json.dumps(data)
+
+    def get_metadata(self):
+        return json.loads(self.metadata)
