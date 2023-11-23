@@ -40,15 +40,19 @@ To use the obfuscator tool, follow the instructions below:
 
 Once you've set up ANTLR and generated the necessary tools, you can integrate them into your Java obfuscator tool. Refer to the project documentation in the 'docs' directory for detailed instructions on how to use the obfuscator tool.
 
-## Contributing
+## Publications and Research
 
-We welcome contributions! If you have ideas for improvements, new features, or bug fixes, feel free to submit a pull request. Please refer to the [contribution guidelines](CONTRIBUTING.md) for more information.
+This obfuscator tool has been the subject of academic research, and a paper titled "Enhancing Code Privacy: An Exploratory Implementation of Java DataFlow Obfuscation" has been published at the 8th International Conference on Combinatorics, Cryptography, Computer Science and Computation (I4C 2023). The authors of the paper are Mohammadhadi Alaeiyan, Ali Hamedi, M.A. SoltanBeigi, AmirReza Parvahan, AmirAli Ghaedi. The paper is available [here](http://i4c.iust.ac.ir/UPL/Paper2023/accpapers/i4c2023-1103.pdf).
 
-## License
+### Citing the Paper
 
-This project is licensed under the [MIT License](LICENSE.md) - see the LICENSE.md file for details.
+If you find this obfuscator tool or the associated research paper useful in your work, we appreciate your citation. You can use the following BibTeX entry:
 
-## Acknowledgments
-
-- Thanks to the ANTLR community for their powerful parsing library.
-- Inspiration drawn from [mention any related projects or tools].
+```bibtex
+@inproceedings{1103,
+  title={Enhancing Code Privacy: An Exploratory Implementation of Java DataFlow Obfuscation},
+  author={Mohammadhadi Alaeiyan and Ali Hamedi and M.A. SoltanBeigi and AmirReza Parvahan and AmirAli Ghaedi},
+  booktitle={Proceedings of the 8th International Conference on Combinatorics, Cryptography, Computer Science and Computation (I4C 2023)},
+  year={2023},
+  url={http://i4c.iust.ac.ir/UPL/Paper2023/accpapers/i4c2023-1103.pdf},
+}
