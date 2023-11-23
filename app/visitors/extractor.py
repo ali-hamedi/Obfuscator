@@ -2,38 +2,48 @@ from app.gen.JavaLexer import JavaLexer
 from app.gen.JavaParser import JavaParser
 from app.gen.JavaParserListener import JavaParserListener
 from app.models.ent import Entity
+from antlr4 import *
+
+"""
+    -  Class : `Extractor`
+      -  Inherits From : `JavaParserListener` so we can parse and travers the code
+
+    - Constructor
+        - Initializes the `Extractor` instance with the current file. // for now
+
+    - Description
+        - The way of work is we access the first and primary grammar rule extracted from our java code.
+        the rule is called CompilationUnit then we traverse deeper and deeper into it where we extract our targeted entities 
+        alongside their properties and each time we traverse deeper we pass the current entity as the parent entity for 
+        the next child.
+
+        - Targeted Enteties:
+
+            class  -> RuleIndex = 7
+            field  -> RuleIndex = 27
+            method  -> RuleIndex = 20
+            formalParameter  -> RuleIndex = 47
+            localVariable  -> RuleIndex = 80
+            enum  -> RuleIndex = 11
+            enumConstant  -> RuleIndex = 13
+            interface  -> RuleIndex = 15
+            interfaceCommonBody  -> RuleIndex = 35
+            constant  -> RuleIndex = 31
+"""
 
 
 class Extractor(JavaParserListener):
     def __init__(self, currentFile):
         self.currentFile = currentFile
 
-        # 7 RULE_classDeclaration
-        # 25 RULE_constructorDeclaration
-        # 27 RULE_fieldDeclaration
-        # 20 RULE_methodDeclaration
-        # todo
-        # formal parameter
-        # methodBody
-        # block
-        # blockStatement
-        # localVariableDeclaration ';'
-        # localTypeDeclaration
-
-        # 15 RULE_interfaceDeclaration
-        # 30 RULE_constDeclaration
-        # 35 RULE_interfaceCommonBodyDeclaration
-
-        # 12 RULE_enumConstant
-        # 11 RULE_enumDeclaration
+        # todo:  25 RULE_constructorDeclaration
 
         # todo : lambda
         # todo : access : primary,expression level 16
 
-    # name =,fileName,line,kind,parent,varOrReturnType,value,metadata
-    # KIND_CHOICES = ["class","interface","enum","const","var","method","obj","generic"]
-
     def enterCompilationUnit(self, ctx: JavaParser.CompilationUnitContext):
+        # todo : extract package
+        # todo : maybe import
         for typeDecl in ctx.typeDeclaration():
             self.handleTypeDeclaration(typeDecl, None)
 
@@ -42,8 +52,14 @@ class Extractor(JavaParserListener):
     ):
         if ctx.classDeclaration():
             self.handleClassDeclaration(ctx.classDeclaration(), parentEntity)
+        elif ctx.enumDeclaration():
+            self.handleEnumDeclaration(ctx.enumDeclaration(), parentEntity)
+        elif ctx.interfaceDeclaration():
+            self.handleInterfaceDeclaration(ctx.interfaceDeclaration(), parentEntity)
+        else:
+            pass
 
-    # ---------- Extracting all entites from a class -----------------
+    # ---------- Extracting all entites from a Class -----------------
     def handleClassDeclaration(
         self, ctx: JavaParser.ClassDeclarationContext, parentEntity
     ):
@@ -51,6 +67,7 @@ class Extractor(JavaParserListener):
         name = ctx.identifier().getText()
         fileName = self.currentFile
         line = ctx.start.line
+        kind_index = 7
         kind = "class"
         parent = parentEntity
         varOrReturnType = name
@@ -75,6 +92,7 @@ class Extractor(JavaParserListener):
             fileName=fileName,
             line=line,
             kind=kind,
+            kind_index=kind_index,
             parent=parent,
             varOrReturnType=varOrReturnType,
             value=value,
@@ -108,6 +126,7 @@ class Extractor(JavaParserListener):
             name = variableDecl.variableDeclaratorId().identifier().getText()
             fileName = self.currentFile
             line = ctx.start.line
+            kind_index = 27
             kind = "field"
             parent = parentEntity
             varOrReturnType = ctx.typeType().getText()
@@ -131,6 +150,7 @@ class Extractor(JavaParserListener):
                 name=name,
                 fileName=fileName,
                 line=line,
+                kind_index=kind_index,
                 kind=kind,
                 parent=parent,
                 varOrReturnType=varOrReturnType,
@@ -139,12 +159,21 @@ class Extractor(JavaParserListener):
             )
             new_field_entity.save()
 
-    def handleMethods(self, ctx: JavaParser.MethodDeclarationContext, parentEntity):
+    def handleMethods(
+        self,
+        ctx: JavaParser.MethodDeclarationContext,
+        parentEntity,
+        isInterfaceCommonBody=False,
+    ):
         # extracting the inital data from the method entity
         name = ctx.identifier().getText()
         fileName = self.currentFile
         line = ctx.start.line
         kind = "method"
+        kind_index = 20
+        if isInterfaceCommonBody:
+            kind = "interfaceCommonBody"
+            kind_index = 35
         varOrReturnType = ctx.typeTypeOrVoid().getText()
         parent = parentEntity
         value = None
@@ -168,6 +197,7 @@ class Extractor(JavaParserListener):
             fileName=fileName,
             line=line,
             kind=kind,
+            kind_index=kind_index,
             parent=parent,
             varOrReturnType=varOrReturnType,
             value=value,
@@ -195,6 +225,7 @@ class Extractor(JavaParserListener):
         fileName = self.currentFile
         line = ctx.start.line
         kind = "formalParameter"
+        kind_index = 47
         parent = parentEntity
         varOrReturnType = ctx.typeType().getText()
         value = None
@@ -206,6 +237,7 @@ class Extractor(JavaParserListener):
             fileName=fileName,
             line=line,
             kind=kind,
+            kind_index=kind_index,
             parent=parent,
             varOrReturnType=varOrReturnType,
             value=value,
@@ -225,17 +257,63 @@ class Extractor(JavaParserListener):
         else:
             if ctx.statement().FOR():
                 self.handleForStatement(ctx.statement(), parentEntity)
-            # todo other expressions,statements .....
+            else:
+                # resolve other variableDeclaratorIds (RULE index == 38) that are deep down the tree in a method
+                tempList = self.find_nodes_with_rule_index_38(ctx.statement())
+                if len(tempList) > 0:
+                    # ? debugging tool
+                    for varDecl in tempList:
+                        if (
+                            varDecl.parentCtx.getRuleIndex() == 37
+                            and varDecl.parentCtx.parentCtx.getRuleIndex() == 36
+                        ):
+                            self.handleLocalVariableDeclaration(
+                                varDecl.parentCtx.parentCtx.parentCtx, parentEntity
+                            )
+                        elif (
+                            varDecl.parentCtx.getRuleIndex() == 95
+                            and varDecl.parentCtx.parentCtx.getRuleIndex() == 93
+                        ):
+                            self.handleForStatement(
+                                varDecl.parentCtx.parentCtx.parentCtx, parentEntity
+                            )
+                        else:
+                            # ? debugging tool
+                            print(
+                                "    ",
+                                varDecl.getText(),
+                                varDecl.parentCtx.getText(),
+                                varDecl.parentCtx.getRuleIndex(),
+                                varDecl.parentCtx.parentCtx.getText(),
+                                varDecl.parentCtx.parentCtx.getRuleIndex(),
+                                varDecl.parentCtx.parentCtx.parentCtx.getText(),
+                                varDecl.parentCtx.parentCtx.parentCtx.getRuleIndex(),
+                            )
+
+    def find_nodes_with_rule_index_38(self, ctx):
+        # recursive method to find all the variableDeclratorIds deep down a context
+        nodes = []
+        if isinstance(ctx, TerminalNode):
+            return nodes
+        if ctx.getRuleIndex() == 38:
+            nodes.append(ctx)
+
+        for child in ctx.getChildren():
+            nodes.extend(self.find_nodes_with_rule_index_38(child))
+
+        return nodes
 
     def handleLocalVariableDeclaration(
         self, ctx: JavaParser.LocalVariableDeclarationContext, parentEntity
     ):
         if ctx.typeType():
+            # extracting inital data for the local variable entity
             for variableDecl in ctx.variableDeclarators().variableDeclarator():
                 name = variableDecl.variableDeclaratorId().identifier().getText()
                 fileName = self.currentFile
                 line = ctx.start.line
                 kind = "localVariable"
+                kind_index = 80
                 parent = parentEntity
                 varOrReturnType = ctx.typeType().getText()
                 # todo: more specific  variableInitializer: arrayInitializer | expression;
@@ -259,6 +337,7 @@ class Extractor(JavaParserListener):
                     fileName=fileName,
                     line=line,
                     kind=kind,
+                    kind_index=kind_index,
                     parent=parent,
                     varOrReturnType=varOrReturnType,
                     value=value,
@@ -266,10 +345,12 @@ class Extractor(JavaParserListener):
                 )
                 new_localVariable_entity.save()
         else:
+            # extracting inital data for the local variable entity
             name = ctx.identifier()
             fileName = self.currentFile
             line = ctx.start.line
             kind = "localVariable"
+            kind_index = 80
             parent = parentEntity
             varOrReturnType = None
             if ctx.expression().primary().literal().STRING_LITERAL:
@@ -298,6 +379,7 @@ class Extractor(JavaParserListener):
                 fileName=fileName,
                 line=line,
                 kind=kind,
+                kind_index=kind_index,
                 parent=parent,
                 varOrReturnType=varOrReturnType,
                 value=value,
@@ -307,11 +389,13 @@ class Extractor(JavaParserListener):
 
     def handleForStatement(self, ctx: JavaParser.StatementContext, parentEntity):
         if ctx.forControl().enhancedForControl():
+            # extracting a localVariable entity from a For statement
             currentCtx = ctx.forControl().enhancedForControl()
             name = currentCtx.variableDeclaratorId().identifier().getText()
             fileName = self.currentFile
             line = currentCtx.start.line
             kind = "localVariable"
+            kind_index = 80
             parent = parentEntity
             varOrReturnType = None
             if currentCtx.typeType():
@@ -332,6 +416,7 @@ class Extractor(JavaParserListener):
                 fileName=fileName,
                 line=line,
                 kind=kind,
+                kind_index=kind_index,
                 parent=parent,
                 varOrReturnType=varOrReturnType,
                 value=value,
@@ -340,21 +425,184 @@ class Extractor(JavaParserListener):
             new_localVariable_entity.save()
 
         else:
+            # extracting a localVariable entity from a For statement
             self.handleLocalVariableDeclaration(
                 ctx.forControl().forInit().localVariableDeclaration(), parentEntity
             )
 
+    # ---------- Extracting all entites from an Enum -----------------
 
-# | fieldDeclaration
+    def handleEnumDeclaration(
+        self, ctx: JavaParser.EnumDeclarationContext, parentEntity
+    ):
+        # extracting the inital data from the enum entity
+        name = ctx.identifier().getText()
+        fileName = self.currentFile
+        line = ctx.start.line
+        kind = "enum"
+        kind_index = 11
+        parent = parentEntity
+        varOrReturnType = name
+        value = None
 
-# | methodDeclaration
-# | genericMethodDeclaration
+        # extracting meta data from the enum entity such as implements,...
+        metadata = {}
 
-# | constructorDeclaration
-# | genericConstructorDeclaration
+        tempList = []
+        if ctx.IMPLEMENTS():
+            for cls in ctx.typeList():
+                tempList.append(cls.getText())
+        metadata["implementList"] = tempList
 
-# | interfaceDeclaration
-# | annotationTypeDeclaration
-# | classDeclaration
-# | enumDeclaration;
-# recordDeclaration //Java17
+        # insert the entity in the table
+        new_enum_entity = Entity.create(
+            name=name,
+            fileName=fileName,
+            line=line,
+            kind=kind,
+            kind_index=kind_index,
+            parent=parent,
+            varOrReturnType=varOrReturnType,
+            value=value,
+            metadata=metadata,
+        )
+        new_enum_entity.save()
+
+        if ctx.enumConstants():
+            for enumConst in ctx.enumConstants().enumConstant():
+                self.handleEnumConstant(enumConst, new_enum_entity)
+
+    def handleEnumConstant(self, ctx: JavaParser.EnumConstantContext, parentEntity):
+        # extracting the inital data from the enum constant
+        name = ctx.identifier().getText()
+        fileName = self.currentFile
+        line = ctx.start.line
+        kind = "enumConstant"
+        kind_index = 13
+        parent = parentEntity
+        varOrReturnType = name
+        value = name
+
+        # extracting meta data from the enum entity such as arguments,...
+        metadata = {}
+
+        tempList = []
+        if ctx.arguments():
+            for cls in ctx.arguments():
+                tempList.append(cls.getText())
+        metadata["arguments"] = tempList
+
+        # insert the entity in the table
+        new_enumConstant_entity = Entity.create(
+            name=name,
+            fileName=fileName,
+            line=line,
+            kind=kind,
+            kind_index=kind_index,
+            parent=parent,
+            varOrReturnType=varOrReturnType,
+            value=value,
+            metadata=metadata,
+        )
+        new_enumConstant_entity.save()
+
+    # ---------- Extracting all entites from an Interface -----------------
+
+    def handleInterfaceDeclaration(
+        self, ctx: JavaParser.InterfaceDeclarationContext, parentEntity
+    ):
+        # extracting the inital data from the interface entity
+        name = ctx.identifier().getText()
+        fileName = self.currentFile
+        line = ctx.start.line
+        kind = "interface"
+        kind_index = 15
+        parent = parentEntity
+        varOrReturnType = name
+        value = None
+
+        # extracting meta data from the interface entity such as extends,...
+        metadata = {}
+
+        extend = None
+        if ctx.EXTENDS():
+            extend = ctx.typeType().getText()
+        metadata["extend"] = extend
+
+        # insert the entity in the table
+        new_interface_entity = Entity.create(
+            name=name,
+            fileName=fileName,
+            line=line,
+            kind=kind,
+            kind_index=kind_index,
+            parent=parent,
+            varOrReturnType=varOrReturnType,
+            value=value,
+            metadata=metadata,
+        )
+        new_interface_entity.save()
+
+        # extracting members (constants,methods,other TypeDeclarations) from interfaceBody
+        for interfaceBodyDeclaration in ctx.interfaceBody().interfaceBodyDeclaration():
+            interfaceMember = interfaceBodyDeclaration.memberDeclaration()
+            if interfaceMember.constDeclaration():
+                self.handleConstDeclaration(
+                    interfaceMember.fieldDeclaration(), new_interface_entity
+                )
+            elif interfaceMember.genericInterfaceMethodDeclaration():
+                self.handleMethods(
+                    interfaceMember.genericInterfaceMethodDeclaration().interfaceCommonBodyDeclaration(),
+                    new_interface_entity,
+                    True,
+                )
+            elif interfaceMember.interfaceMethodDeclaration():
+                self.handleMethods(
+                    interfaceMember.interfaceMethodDeclaration().interfaceCommonBodyDeclaration(),
+                    new_interface_entity,
+                    True,
+                )
+            elif (
+                interfaceMember.constructorDeclaration()
+                or interfaceMember.genericConstructorDeclaration()
+            ):
+                pass
+            else:
+                self.handleTypeDeclaration(interfaceMember, new_interface_entity)
+
+    def handleConstDeclaration(
+        self, ctx: JavaParser.ConstDeclarationContext, parentEntity
+    ):
+        # extracting the inital data from the field entity
+        for variableDecl in ctx.constantDeclarator():
+            name = variableDecl.identifier().getText()
+            fileName = self.currentFile
+            line = ctx.start.line
+            kind = "constant"
+            kind_index = 31
+            parent = parentEntity
+            varOrReturnType = ctx.typeType().getText()
+            # todo: more specific  variableInitializer: arrayInitializer | expression;
+            value = variableDecl.variableInitializer().getText()
+
+            # extracting meta data from the class entity such as implements,extends,...
+            metadata = {}
+
+            modifiers = []
+            for modifier in ctx.parentCtx.modifier():
+                modifiers.append(modifier.getText())
+            metadata["modifiers"] = modifiers
+
+            # insert the entity in the table
+            new_const_entity = Entity.create(
+                name=name,
+                fileName=fileName,
+                line=line,
+                kind=kind,
+                kind_index=kind_index,
+                parent=parent,
+                varOrReturnType=varOrReturnType,
+                value=value,
+                metadata=metadata,
+            )
+            new_const_entity.save()

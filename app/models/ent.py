@@ -19,13 +19,18 @@ class Entity(Model):
     name = CharField()
     fileName = CharField()
     line = IntegerField()
-
+    kind_index = IntegerField()
     KIND_CHOICES = [
-        "class",
-        "field",
-        "method",
-        "formalParameter",
-        "localVariable",
+        "class",  # 7
+        "field",  # 27
+        "method",  # 20
+        "formalParameter",  # 47
+        "localVariable",  # 80
+        "enum",  # 11
+        "enumConstant",  # 13
+        "interface",  # 15
+        "interfaceCommonBody",  # 35
+        "constant",  # 31
     ]
     kind = CharField(choices=KIND_CHOICES)
     parent = ForeignKeyField("self", backref="children", null=True)
