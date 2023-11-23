@@ -19,16 +19,17 @@ from antlr4 import *
 
         - Targeted Enteties:
 
-            class  -> RuleIndex = 7
-            field  -> RuleIndex = 27
-            method  -> RuleIndex = 20
-            formalParameter  -> RuleIndex = 47
-            localVariable  -> RuleIndex = 80
-            enum  -> RuleIndex = 11
-            enumConstant  -> RuleIndex = 13
-            interface  -> RuleIndex = 15
-            interfaceCommonBody  -> RuleIndex = 35
-            constant  -> RuleIndex = 31
+            class  -> RuleIndex = 7 self,qualif ->for imports  /   typeIdentifier  constructor i donno
+            field  -> RuleIndex = 27 : self and primary and expression
+            method  -> RuleIndex = 20 : self, primary and expression   method call
+            formalParameter  -> RuleIndex = 47 : self and primary and expression
+            localVariable  -> RuleIndex = 80 : self and primary and expression
+            enum  -> RuleIndex = 11  : self,primary qualif ->for imports  /   typeIdentifier 
+            enumConstant  -> RuleIndex =  13 : self and primary and expression
+            interface  -> RuleIndex = 15 : self,qualif ->for imports  /   typeIdentifier 
+            interfaceCommonBody  -> RuleIndex =   35 : self and primary / defnitinon of other methods(implement)
+            constant  -> RuleIndex = 31 : self and primary 
+
 """
 
 
@@ -606,3 +607,30 @@ class Extractor(JavaParserListener):
                 metadata=metadata,
             )
             new_const_entity.save()
+
+    def enterExpression(self, ctx: JavaParser.ExpressionContext):
+        self.visitExpression(ctx)
+
+    def visitExpression(self, ctx: JavaParser.ExpressionContext):
+        if ctx.primary():
+            if ctx.primary().identifier():
+                print("Primary Expression:", ctx.primary().identifier().getText())
+
+        elif ctx.bop and ctx.bop.text == ".":
+            # Handle different cases like identifier, methodCall, etc.
+            print("Member Access:", ctx.getText())
+
+            
+        elif ctx.methodCall():
+            print("Method Call:",ctx.methodCall().getText(),ctx.methodCall().identifier().getText())
+
+        elif ctx.LBRACK() and ctx.RBRACK():
+            print("Array Access:",ctx.getText())
+
+
+        # Add more conditions as needed
+
+        # Continue visiting children
+        for child in ctx.getChildren():
+            if isinstance(child, JavaParser.ExpressionContext):
+                self.visitExpression(child)
