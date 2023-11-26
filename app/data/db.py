@@ -59,8 +59,6 @@ def clear_database():
         print(f"Error clearing the database: {e}")
 
 
-
-
 # ----------------- pre populated queries ------------------------
 def find_enteties_for_array(name, current_file, start_line, kind):
     return (
@@ -81,7 +79,7 @@ def find_enteties_for_primary(name, current_file, start_line, kind):
         Entity.select()
         .where(Entity.name == name)
         .where(Entity.fileName == current_file)
-        .where(Entity.kind == "localVariable")
+        .where(Entity.kind == kind)
         .where(Entity.startLine <= start_line)
         .where(Entity.parent.startLine <= start_line)
         .order_by(Entity.startLine.desc())
@@ -92,12 +90,13 @@ def find_enteties_for_primary(name, current_file, start_line, kind):
 def find_enteties_for_methodCall(name, current_file, start_line):
     return (
         Entity.select()
-        .where(Entity.name == name)
-        .where(Entity.fileName == current_file)
-        .where(Entity.kind == "method")
-        | (Entity.kind == "interfaceCommonBody")
-        .where(Entity.startLine <= start_line)
-        .where(Entity.parent.startLine <= start_line)
+        .where(
+            (Entity.name == name)
+            & (Entity.fileName == current_file)
+            & ((Entity.kind == "method") | (Entity.kind == "interfaceCommonBody"))
+            & (Entity.startLine <= start_line)
+            & (Entity.parent.startLine <= start_line)
+        )
         .order_by(Entity.startLine.desc())
         .first()
     )
@@ -113,3 +112,56 @@ def find_enteties_for_declarations(name, current_file, start_line, stop_line, ki
         .where(Entity.stopLine == stop_line)
         .first()
     )
+
+
+def find_enteties_for_imports(name, import_file_name):
+    return (
+        Entity.select()
+        .where(
+            (Entity.name == name)
+            & (
+                (Entity.kind == "class")
+                | (Entity.kind == "enum")
+                | (Entity.kind == "interface")
+            )
+            & (Entity.fileName == import_file_name)
+        )
+        .first()
+    )
+
+
+def find_enteties_for_type_identifier(name, accepted_files):
+    return (
+        Entity.select()
+        .where(Entity.name == name)
+        .where(
+            (Entity.name == name)
+            & (
+                (Entity.kind == "class")
+                | (Entity.kind == "enum")
+                | (Entity.kind == "interface")
+            )
+            & (Entity.fileName << accepted_files)
+        )
+        .first()
+    )
+
+
+def find_enteties_for_members(name, parentEntity, kind, isArray=False):
+    if isArray:
+        return (
+            Entity.select()
+            .where(Entity.name == name)
+            .where(Entity.fileName == parentEntity.fileName)
+            .where(Entity.kind == kind)
+            .where(Entity.varOrReturnType.contains("[]"))
+            .first()
+        )
+    else:
+        return (
+            Entity.select()
+            .where(Entity.name == name)
+            .where(Entity.fileName == parentEntity.fileName)
+            .where(Entity.kind == kind)
+            .first()
+        )

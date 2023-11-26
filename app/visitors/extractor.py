@@ -41,17 +41,18 @@ class Extractor:
     ):
         self.currentFile = currentFile
         self.compilationUnit = compilationUnit
+        self.newFileName = ""
+        self.packageName = ""
         # todo:  25 RULE_constructorDeclaration
 
         # todo : lambda
         # todo : access : primary,expression level 16
 
     def startExtracting(self):
-        # todo : extract package
-        # todo : maybe import
+        if self.compilationUnit.packageDeclaration():
+            self.packageName = self.compilationUnit.packageDeclaration().qualifiedName().getText()
         for typeDecl in self.compilationUnit.typeDeclaration():
             self.handleTypeDeclaration(typeDecl, None)
-
 
     def handleTypeDeclaration(
         self, ctx: JavaParser.TypeDeclarationContext, parentEntity
@@ -107,6 +108,10 @@ class Extractor:
             metadata=metadata,
         )
         new_class_entity.save()
+
+        # setting the new file name
+        if parentEntity is None:
+            self.newFileName = new_class_entity.newName
 
         # extracting members (fields,methods,constructor,other TypeDeclarations) from classBody
         for classBodyDeclaration in ctx.classBody().classBodyDeclaration():
@@ -286,13 +291,11 @@ class Extractor:
                         self.handleLocalVariableDeclaration(
                             varDecl.parentCtx.parentCtx.parentCtx, parentEntity
                         )
-                    # elif (
-                    #     varDecl.parentCtx.getRuleIndex() == 95
-                    #     and varDecl.parentCtx.parentCtx.getRuleIndex() == 93
-                    # ):
-                    #     self.handleForStatement(
-                    #         varDecl.parentCtx.parentCtx.parentCtx, parentEntity
-                    #     )
+                    elif (
+                        varDecl.parentCtx.getRuleIndex() == 95
+                        and varDecl.parentCtx.parentCtx.getRuleIndex() == 93
+                    ):
+                        continue
                     else:
                         # ? debugging tool
                         print(

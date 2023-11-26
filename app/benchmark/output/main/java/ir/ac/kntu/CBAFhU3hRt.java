@@ -1,0 +1,1 @@
+package ir . ac . kntu ; import ir . ac . kntu . View . Tri09nSG2g ; import java . util . Scanner ; public class CBAFhU3hRt { public static void Z1qEBXPVLL ( String [ ] GBgNJbqjot ) { Scanner No78u31wsj = new Scanner ( System . in ) ; ( new Menu ( ) ) . run ( No78u31wsj , new JsonGenerator ( ) ) ; No78u31wsj . close ( ) ; } }
