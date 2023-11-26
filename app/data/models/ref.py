@@ -13,7 +13,7 @@ from peewee import (
 )
 
 # Import the Entity model
-from models.ent import Entity
+from app.data.models.ent import Entity
 
 # Connect to db
 db = SqliteDatabase("obfuscator.db")

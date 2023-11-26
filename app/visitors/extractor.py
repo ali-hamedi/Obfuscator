@@ -1,7 +1,9 @@
 from app.gen.JavaLexer import JavaLexer
 from app.gen.JavaParser import JavaParser
 from app.gen.JavaParserListener import JavaParserListener
-from app.models.ent import Entity
+from app.data.models.ent import Entity
+from app.data.models.ref import Reference
+from app.data.db import *
 from antlr4 import *
 
 """
@@ -33,20 +35,23 @@ from antlr4 import *
 """
 
 
-class Extractor(JavaParserListener):
-    def __init__(self, currentFile):
+class Extractor:
+    def __init__(
+        self, currentFile: str, compilationUnit: JavaParser.CompilationUnitContext
+    ):
         self.currentFile = currentFile
-
+        self.compilationUnit = compilationUnit
         # todo:  25 RULE_constructorDeclaration
 
         # todo : lambda
         # todo : access : primary,expression level 16
 
-    def enterCompilationUnit(self, ctx: JavaParser.CompilationUnitContext):
+    def startExtracting(self):
         # todo : extract package
         # todo : maybe import
-        for typeDecl in ctx.typeDeclaration():
+        for typeDecl in self.compilationUnit.typeDeclaration():
             self.handleTypeDeclaration(typeDecl, None)
+
 
     def handleTypeDeclaration(
         self, ctx: JavaParser.TypeDeclarationContext, parentEntity
@@ -67,7 +72,8 @@ class Extractor(JavaParserListener):
         # extracting the inital data from the class entity
         name = ctx.identifier().getText()
         fileName = self.currentFile
-        line = ctx.start.line
+        startLine = ctx.start.line
+        stopLine = ctx.stop.line
         kind_index = 7
         kind = "class"
         parent = parentEntity
@@ -91,7 +97,8 @@ class Extractor(JavaParserListener):
         new_class_entity = Entity.create(
             name=name,
             fileName=fileName,
-            line=line,
+            startLine=startLine,
+            stopLine=stopLine,
             kind=kind,
             kind_index=kind_index,
             parent=parent,
@@ -126,7 +133,8 @@ class Extractor(JavaParserListener):
         for variableDecl in ctx.variableDeclarators().variableDeclarator():
             name = variableDecl.variableDeclaratorId().identifier().getText()
             fileName = self.currentFile
-            line = ctx.start.line
+            startLine = ctx.start.line
+            stopLine = ctx.stop.line
             kind_index = 27
             kind = "field"
             parent = parentEntity
@@ -150,7 +158,8 @@ class Extractor(JavaParserListener):
             new_field_entity = Entity.create(
                 name=name,
                 fileName=fileName,
-                line=line,
+                startLine=startLine,
+                stopLine=stopLine,
                 kind_index=kind_index,
                 kind=kind,
                 parent=parent,
@@ -169,7 +178,8 @@ class Extractor(JavaParserListener):
         # extracting the inital data from the method entity
         name = ctx.identifier().getText()
         fileName = self.currentFile
-        line = ctx.start.line
+        startLine = ctx.start.line
+        stopLine = ctx.stop.line
         kind = "method"
         kind_index = 20
         if isInterfaceCommonBody:
@@ -196,7 +206,8 @@ class Extractor(JavaParserListener):
         new_method_entity = Entity.create(
             name=name,
             fileName=fileName,
-            line=line,
+            startLine=startLine,
+            stopLine=stopLine,
             kind=kind,
             kind_index=kind_index,
             parent=parent,
@@ -224,7 +235,8 @@ class Extractor(JavaParserListener):
     ):
         name = ctx.variableDeclaratorId().identifier().getText()
         fileName = self.currentFile
-        line = ctx.start.line
+        startLine = ctx.start.line
+        stopLine = ctx.stop.line
         kind = "formalParameter"
         kind_index = 47
         parent = parentEntity
@@ -236,7 +248,8 @@ class Extractor(JavaParserListener):
         new_formalParameter_entity = Entity.create(
             name=name,
             fileName=fileName,
-            line=line,
+            startLine=startLine,
+            stopLine=stopLine,
             kind=kind,
             kind_index=kind_index,
             parent=parent,
@@ -256,42 +269,45 @@ class Extractor(JavaParserListener):
         elif ctx.localTypeDeclaration():
             self.handleTypeDeclaration(ctx.localTypeDeclaration(), parentEntity)
         else:
-            if ctx.statement().FOR():
-                self.handleForStatement(ctx.statement(), parentEntity)
-            else:
-                # resolve other variableDeclaratorIds (RULE index == 38) that are deep down the tree in a method
-                tempList = self.find_nodes_with_rule_index_38(ctx.statement())
-                if len(tempList) > 0:
-                    # ? debugging tool
-                    for varDecl in tempList:
-                        if (
-                            varDecl.parentCtx.getRuleIndex() == 37
-                            and varDecl.parentCtx.parentCtx.getRuleIndex() == 36
-                        ):
-                            self.handleLocalVariableDeclaration(
-                                varDecl.parentCtx.parentCtx.parentCtx, parentEntity
-                            )
-                        elif (
-                            varDecl.parentCtx.getRuleIndex() == 95
-                            and varDecl.parentCtx.parentCtx.getRuleIndex() == 93
-                        ):
-                            self.handleForStatement(
-                                varDecl.parentCtx.parentCtx.parentCtx, parentEntity
-                            )
-                        else:
-                            # ? debugging tool
-                            print(
-                                "    ",
-                                varDecl.getText(),
-                                varDecl.parentCtx.getText(),
-                                varDecl.parentCtx.getRuleIndex(),
-                                varDecl.parentCtx.parentCtx.getText(),
-                                varDecl.parentCtx.parentCtx.getRuleIndex(),
-                                varDecl.parentCtx.parentCtx.parentCtx.getText(),
-                                varDecl.parentCtx.parentCtx.parentCtx.getRuleIndex(),
-                            )
+            # nested for s
+            tempForStatementList = self.forStatementFinder(ctx.statement())
+            if len(tempForStatementList) > 0:
+                for forStatement in tempForStatementList:
+                    self.handleForStatement(forStatement, parentEntity)
 
-    def find_nodes_with_rule_index_38(self, ctx):
+            # nested variable declaration inside the statements/codeFlow
+            tempVarDeclIdList = self.variableDeclratorIdFinder(ctx.statement())
+            if len(tempVarDeclIdList) > 0:
+                for varDecl in tempVarDeclIdList:
+                    if (
+                        varDecl.parentCtx.getRuleIndex() == 37
+                        and varDecl.parentCtx.parentCtx.getRuleIndex() == 36
+                    ):
+                        self.handleLocalVariableDeclaration(
+                            varDecl.parentCtx.parentCtx.parentCtx, parentEntity
+                        )
+                    # elif (
+                    #     varDecl.parentCtx.getRuleIndex() == 95
+                    #     and varDecl.parentCtx.parentCtx.getRuleIndex() == 93
+                    # ):
+                    #     self.handleForStatement(
+                    #         varDecl.parentCtx.parentCtx.parentCtx, parentEntity
+                    #     )
+                    else:
+                        # ? debugging tool
+                        print(
+                            "    ",
+                            varDecl.getText(),
+                            varDecl.parentCtx.getText(),
+                            varDecl.parentCtx.getRuleIndex(),
+                            varDecl.parentCtx.parentCtx.getText(),
+                            varDecl.parentCtx.parentCtx.getRuleIndex(),
+                            varDecl.parentCtx.parentCtx.parentCtx.getText(),
+                            varDecl.parentCtx.parentCtx.parentCtx.getRuleIndex(),
+                        )
+        return
+
+    def variableDeclratorIdFinder(self, ctx):
         # recursive method to find all the variableDeclratorIds deep down a context
         nodes = []
         if isinstance(ctx, TerminalNode):
@@ -300,7 +316,20 @@ class Extractor(JavaParserListener):
             nodes.append(ctx)
 
         for child in ctx.getChildren():
-            nodes.extend(self.find_nodes_with_rule_index_38(child))
+            nodes.extend(self.variableDeclratorIdFinder(child))
+
+        return nodes
+
+    def forStatementFinder(self, ctx):
+        # recursive method to find all the forStaements deep down a context
+        nodes = []
+        if isinstance(ctx, TerminalNode):
+            return nodes
+        if isinstance(ctx, JavaParser.StatementContext) and ctx.FOR():
+            nodes.append(ctx)
+
+        for child in ctx.getChildren():
+            nodes.extend(self.forStatementFinder(child))
 
         return nodes
 
@@ -312,7 +341,8 @@ class Extractor(JavaParserListener):
             for variableDecl in ctx.variableDeclarators().variableDeclarator():
                 name = variableDecl.variableDeclaratorId().identifier().getText()
                 fileName = self.currentFile
-                line = ctx.start.line
+                startLine = ctx.start.line
+                stopLine = ctx.stop.line
                 kind = "localVariable"
                 kind_index = 80
                 parent = parentEntity
@@ -336,7 +366,8 @@ class Extractor(JavaParserListener):
                 new_localVariable_entity = Entity.create(
                     name=name,
                     fileName=fileName,
-                    line=line,
+                    startLine=startLine,
+                    stopLine=stopLine,
                     kind=kind,
                     kind_index=kind_index,
                     parent=parent,
@@ -349,7 +380,8 @@ class Extractor(JavaParserListener):
             # extracting inital data for the local variable entity
             name = ctx.identifier()
             fileName = self.currentFile
-            line = ctx.start.line
+            startLine = ctx.start.line
+            stopLine = ctx.stop.line
             kind = "localVariable"
             kind_index = 80
             parent = parentEntity
@@ -378,7 +410,8 @@ class Extractor(JavaParserListener):
             new_localVariable_entity = Entity.create(
                 name=name,
                 fileName=fileName,
-                line=line,
+                startLine=startLine,
+                stopLine=stopLine,
                 kind=kind,
                 kind_index=kind_index,
                 parent=parent,
@@ -394,7 +427,8 @@ class Extractor(JavaParserListener):
             currentCtx = ctx.forControl().enhancedForControl()
             name = currentCtx.variableDeclaratorId().identifier().getText()
             fileName = self.currentFile
-            line = currentCtx.start.line
+            startLine = ctx.start.line
+            stopLine = ctx.stop.line
             kind = "localVariable"
             kind_index = 80
             parent = parentEntity
@@ -415,7 +449,8 @@ class Extractor(JavaParserListener):
             new_localVariable_entity = Entity.create(
                 name=name,
                 fileName=fileName,
-                line=line,
+                startLine=startLine,
+                stopLine=stopLine,
                 kind=kind,
                 kind_index=kind_index,
                 parent=parent,
@@ -439,7 +474,8 @@ class Extractor(JavaParserListener):
         # extracting the inital data from the enum entity
         name = ctx.identifier().getText()
         fileName = self.currentFile
-        line = ctx.start.line
+        startLine = ctx.start.line
+        stopLine = ctx.stop.line
         kind = "enum"
         kind_index = 11
         parent = parentEntity
@@ -459,7 +495,8 @@ class Extractor(JavaParserListener):
         new_enum_entity = Entity.create(
             name=name,
             fileName=fileName,
-            line=line,
+            startLine=startLine,
+            stopLine=stopLine,
             kind=kind,
             kind_index=kind_index,
             parent=parent,
@@ -477,7 +514,8 @@ class Extractor(JavaParserListener):
         # extracting the inital data from the enum constant
         name = ctx.identifier().getText()
         fileName = self.currentFile
-        line = ctx.start.line
+        startLine = ctx.start.line
+        stopLine = ctx.stop.line
         kind = "enumConstant"
         kind_index = 13
         parent = parentEntity
@@ -497,7 +535,8 @@ class Extractor(JavaParserListener):
         new_enumConstant_entity = Entity.create(
             name=name,
             fileName=fileName,
-            line=line,
+            startLine=startLine,
+            stopLine=stopLine,
             kind=kind,
             kind_index=kind_index,
             parent=parent,
@@ -515,7 +554,8 @@ class Extractor(JavaParserListener):
         # extracting the inital data from the interface entity
         name = ctx.identifier().getText()
         fileName = self.currentFile
-        line = ctx.start.line
+        startLine = ctx.start.line
+        stopLine = ctx.stop.line
         kind = "interface"
         kind_index = 15
         parent = parentEntity
@@ -534,7 +574,8 @@ class Extractor(JavaParserListener):
         new_interface_entity = Entity.create(
             name=name,
             fileName=fileName,
-            line=line,
+            startLine=startLine,
+            stopLine=stopLine,
             kind=kind,
             kind_index=kind_index,
             parent=parent,
@@ -578,7 +619,8 @@ class Extractor(JavaParserListener):
         for variableDecl in ctx.constantDeclarator():
             name = variableDecl.identifier().getText()
             fileName = self.currentFile
-            line = ctx.start.line
+            startLine = ctx.start.line
+            stopLine = ctx.stop.line
             kind = "constant"
             kind_index = 31
             parent = parentEntity
@@ -598,7 +640,8 @@ class Extractor(JavaParserListener):
             new_const_entity = Entity.create(
                 name=name,
                 fileName=fileName,
-                line=line,
+                startLine=startLine,
+                stopLine=stopLine,
                 kind=kind,
                 kind_index=kind_index,
                 parent=parent,
@@ -607,30 +650,3 @@ class Extractor(JavaParserListener):
                 metadata=metadata,
             )
             new_const_entity.save()
-
-    def enterExpression(self, ctx: JavaParser.ExpressionContext):
-        self.visitExpression(ctx)
-
-    def visitExpression(self, ctx: JavaParser.ExpressionContext):
-        if ctx.primary():
-            if ctx.primary().identifier():
-                print("Primary Expression:", ctx.primary().identifier().getText())
-
-        elif ctx.bop and ctx.bop.text == ".":
-            # Handle different cases like identifier, methodCall, etc.
-            print("Member Access:", ctx.getText())
-
-            
-        elif ctx.methodCall():
-            print("Method Call:",ctx.methodCall().getText(),ctx.methodCall().identifier().getText())
-
-        elif ctx.LBRACK() and ctx.RBRACK():
-            print("Array Access:",ctx.getText())
-
-
-        # Add more conditions as needed
-
-        # Continue visiting children
-        for child in ctx.getChildren():
-            if isinstance(child, JavaParser.ExpressionContext):
-                self.visitExpression(child)

@@ -1,6 +1,7 @@
 # Project specific
 grammar/
-a.py
+obfuscator.db
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.pyc
