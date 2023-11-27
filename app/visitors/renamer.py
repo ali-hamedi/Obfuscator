@@ -1,3 +1,5 @@
+import os
+
 from app.gen.JavaLexer import JavaLexer
 from app.gen.JavaParser import JavaParser
 from app.gen.JavaParserListener import JavaParserListener
@@ -36,9 +38,10 @@ from antlr4 import *
 
 
 class Renamer(JavaParserListener):
-    def __init__(self, currentFile, projectPackges, usedClasses):
+    def __init__(self, currentFile, projectPath, projectPackges, usedClasses):
         self.currentFile = currentFile
         self.projectPackges = projectPackges
+        self.projectPath = projectPath
         self.usedClasses = usedClasses
         self.out = []
 
@@ -47,21 +50,29 @@ class Renamer(JavaParserListener):
         importQualifiedName = ctx.qualifiedName()
         importIdentifiers = ctx.qualifiedName().identifier()
 
-        qualifiedName = ctx.qualifiedName()
         tempComponents = importQualifiedName.getText().split(".")
         tempQualifiedName = ".".join(tempComponents[:-1])
 
-        if tempQualifiedName in self.projectPackges:
-            importedClassIdentifier = importIdentifiers[-1]
-            self.usedClasses.append(importedClassIdentifier.getText() + ".java")
+        if "*" == ctx.getChild(ctx.getChildCount() - 2).getText():
+            tempPath = os.path.join(self.projectPath, "java", *tempComponents)
+            file_names_arr = [
+                f
+                for f in os.listdir(tempPath)
+                if os.path.isfile(os.path.join(tempPath, f))
+            ]
+            self.usedClasses.extend(file_names_arr)
+        else:
+            if tempQualifiedName in self.projectPackges:
+                importedClassIdentifier = importIdentifiers[-1]
+                self.usedClasses.append(importedClassIdentifier.getText() + ".java")
 
-            ent = find_enteties_for_imports(
-                importedClassIdentifier.getText(),
-                importedClassIdentifier.getText() + ".java",
-            )
-            if ent:
-                self.castIdentifier(importedClassIdentifier, ent)
-            return
+                ent = find_enteties_for_imports(
+                    importedClassIdentifier.getText(),
+                    importedClassIdentifier.getText() + ".java",
+                )
+                if ent:
+                    self.castIdentifier(importedClassIdentifier, ent)
+                return
 
     def enterClassDeclaration(self, ctx: JavaParser.ClassDeclarationContext):
         name = ctx.identifier()
@@ -111,9 +122,9 @@ class Renamer(JavaParserListener):
             class_parent = ent.parent.get_metadata()["extend"]
             class_parent_ent = find_class_by_fileName(class_parent)
 
-            temp_ent = find_override_methods(name.getText(),class_parent_ent)
+            temp_ent = find_override_methods(name.getText(), class_parent_ent)
             if temp_ent:
-                self.castIdentifier(name,temp_ent)
+                self.castIdentifier(name, temp_ent)
                 return
         if ent:
             self.castIdentifier(name, ent)
@@ -362,11 +373,14 @@ class Renamer(JavaParserListener):
         for child in ctx.getChildren():
             if child.getText() != "::":
                 members.append(child)
-
-        parentEntity = self.handleTypeIdentifiers(members[0], members[0].getText())
-        ent = find_enteties_for_members(members[1].getText(), parentEntity, "method")
-        if ent:
-            self.castIdentifier(members[1], ent)
+        if len(members) > 0:
+            # print(members[0], members[0].getText(), self.usedClasses)
+            parentEntity = self.handleTypeIdentifiers(members[0], members[0].getText())
+            ent = find_enteties_for_members(
+                members[1].getText(), parentEntity, "method"
+            )
+            if ent:
+                self.castIdentifier(members[1], ent)
 
     # ------------ Resolve and Rename member accesses ------------
     def resolveMemberAccess(self, ctx):

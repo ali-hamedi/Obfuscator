@@ -1,4 +1,4 @@
-package app.benchmark.project1.main.java.ir.ac.kntu.data.db;
+package ir.ac.kntu.data.db;
 
 import java.util.ArrayList;
 

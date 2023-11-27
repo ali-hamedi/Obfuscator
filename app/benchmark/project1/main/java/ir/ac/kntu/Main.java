@@ -1,4 +1,4 @@
-package app.benchmark.project1.main.java.ir.ac.kntu;
+package ir.ac.kntu;
 
 import java.util.Scanner;
 

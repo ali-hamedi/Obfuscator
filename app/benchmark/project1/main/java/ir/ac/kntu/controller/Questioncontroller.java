@@ -1,4 +1,4 @@
-package app.benchmark.project1.main.java.ir.ac.kntu.controller;
+package ir.ac.kntu.controller;
 
 import ir.ac.kntu.data.db.Questionbank;
 import ir.ac.kntu.data.models.*;
@@ -122,6 +122,18 @@ public class Questioncontroller {
 
     public static void increseLists(Course c, User u) {
         for (Exercise e : c.getExercsies()) {
+            for (Question q : e.getQuestions()) {
+                HashMap<User, String> finalSubmits = q.getFinalSubmitList();
+                HashMap<User, ArrayList<String>> submits = q.getSubmitsList();
+                HashMap<User, Integer> userPoints = q.getUsersPoint();
+                finalSubmits.put(u, "");
+                submits.put(u, new ArrayList<String>());
+                userPoints.put(u, 0);
+            }
+        }
+    }
+    public static void mmdhos(Course c,User u,Question q){
+                for (Exercise e : c.getExercsies()) {
             for (Question q : e.getQuestions()) {
                 HashMap<User, String> finalSubmits = q.getFinalSubmitList();
                 HashMap<User, ArrayList<String>> submits = q.getSubmitsList();

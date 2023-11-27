@@ -144,7 +144,6 @@ def find_enteties_for_imports(name, import_file_name):
 def find_enteties_for_type_identifier(name, accepted_files):
     return (
         Entity.select()
-        .where(Entity.name == name)
         .where(
             (Entity.name == name)
             & (

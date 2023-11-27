@@ -1,4 +1,4 @@
-package app.benchmark.project1.main.java.ir.ac.kntu.data.models;
+package ir.ac.kntu.data.models;
 
 import java.util.Objects;
 

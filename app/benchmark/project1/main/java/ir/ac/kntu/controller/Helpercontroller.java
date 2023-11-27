@@ -1,4 +1,4 @@
-package app.benchmark.project1.main.java.ir.ac.kntu.controller;
+package ir.ac.kntu.controller;
 
 import java.util.ArrayList;
 import java.util.Collections;

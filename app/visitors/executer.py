@@ -90,6 +90,7 @@ class Executer:
             ]
             renamer = Renamer(
                 self.fileNames[i],
+                self.projectPath,
                 packages,
                 self.filePackageConfDict[self.fileNames[i]]["relatedFiles"],
             )
