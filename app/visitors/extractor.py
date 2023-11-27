@@ -50,7 +50,9 @@ class Extractor:
 
     def startExtracting(self):
         if self.compilationUnit.packageDeclaration():
-            self.packageName = self.compilationUnit.packageDeclaration().qualifiedName().getText()
+            self.packageName = (
+                self.compilationUnit.packageDeclaration().qualifiedName().getText()
+            )
         for typeDecl in self.compilationUnit.typeDeclaration():
             self.handleTypeDeclaration(typeDecl, None)
 
@@ -90,7 +92,7 @@ class Extractor:
                 tempList.append(cls.getText())
         metadata["implementList"] = tempList
         extend = None
-        if ctx.EXTENDS():
+        if ctx.EXTENDS() and ctx.typeType():
             extend = ctx.typeType().getText()
         metadata["extend"] = extend
 

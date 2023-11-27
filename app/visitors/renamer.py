@@ -42,6 +42,7 @@ class Renamer(JavaParserListener):
         self.usedClasses = usedClasses
         self.out = []
 
+    # ------------ Rename declrations themselvs ------------
     def enterImportDeclaration(self, ctx: JavaParser.ImportDeclarationContext):
         importQualifiedName = ctx.qualifiedName()
         importIdentifiers = ctx.qualifiedName().identifier()
@@ -99,9 +100,23 @@ class Renamer(JavaParserListener):
             ctx.stop.line,
             "method",
         )
+        for modifier in ctx.parentCtx.parentCtx.modifier():
+            if (
+                modifier.classOrInterfaceModifier().annotation()
+                and modifier.classOrInterfaceModifier().annotation() == "Override"
+            ):
+                # ? maybe delete the override
+                pass
+        if ent.parent.get_metadata()["extend"]:
+            class_parent = ent.parent.get_metadata()["extend"]
+            class_parent_ent = find_class_by_fileName(class_parent)
+
+            temp_ent = find_override_methods(name.getText(),class_parent_ent)
+            if temp_ent:
+                self.castIdentifier(name,temp_ent)
+                return
         if ent:
             self.castIdentifier(name, ent)
-
         return
 
     def enterFormalParameter(self, ctx: JavaParser.FormalParameterContext):
@@ -239,34 +254,33 @@ class Renamer(JavaParserListener):
 
             return
 
+    # ------------ Rename refrencess (primary + expressions) ------------
     def enterExpression(self, ctx: JavaParser.ExpressionContext):
         self.visitExpression(ctx)
 
     def visitExpression(self, ctx: JavaParser.ExpressionContext):
         if ctx.primary():
             if ctx.primary().identifier():
-                # print("Primary Expression:", ctx.primary().identifier().getText())
                 return self.matchIdentifier(ctx.primary(), "primary")
             elif ctx.primary().expression():
                 return self.visitExpression(ctx.primary().expression())
+
         elif ctx.bop and ctx.bop.text == ".":
-            # print("Member Access:", ctx.getText())
-            self.resolveMemberAccess(ctx)
-            return
+            return self.resolveMemberAccess(ctx)
 
         elif ctx.methodCall():
-            # print(
-            # "Method Call:",
-            # ctx.methodCall().getText(),
-            # ctx.methodCall().identifier().getText(),
-            # )
             return self.matchIdentifier(ctx.methodCall(), "methodCall")
 
         elif ctx.LBRACK() and ctx.RBRACK():
-            # print("Array Access:", ctx.getText())
             return self.matchIdentifier(ctx.expression()[0], "array")
 
-        # Add more conditions as needed
+        # Rest of type identifiers + special cases
+        elif ctx.classType():
+            return self.handleTypeIdentifiers(
+                ctx.classType(), ctx.classType().identifier().getText()
+            )
+        elif "::" in ctx.getText():
+            return self.handleMethodReferences(ctx)
 
         # Continue visiting children
         for child in ctx.getChildren():
@@ -288,12 +302,9 @@ class Renamer(JavaParserListener):
 
         name = None
         result = None
-
-        if type == "methodCal":
+        if type == "methodCall":
             name = ctx.identifier().getText()
-            result = find_enteties_for_methodCall(
-                name, self.currentFile, ctx.start.line
-            )
+            result = find_enteties_for_methodCall(name, self.currentFile)
             if result:
                 self.castIdentifier(ctx, result)
                 return result
@@ -306,31 +317,145 @@ class Renamer(JavaParserListener):
             if type == "array":
                 name = ctx.getText()
                 result = find_enteties_for_array(
-                    name, self.currentFile, ctx.start.line, entity_type
+                    name, self.currentFile, ctx.start.line, ctx.stop.line, entity_type
                 )
             elif type == "primary":
                 name = ctx.identifier().getText()
                 result = find_enteties_for_primary(
-                    name, self.currentFile, ctx.start.line, entity_type
+                    name, self.currentFile, ctx.start.line, ctx.stop.line, entity_type
                 )
 
             # If a matching result is found, cast the identifier and return
+
             if result:
-                # print('alo')
                 self.castIdentifier(ctx, result)
                 return result
+        if type == "primary" and result is None:
+            self.handleTypeIdentifiers(ctx.identifier(), ctx.identifier().getText())
 
-    def castIdentifier(self, ctx, result):
-        # adding filters
-        ctx.start.text = result.newName
+    # ------------ Resolve type identifiers  & special cases------------
+    def handleTypeIdentifiers(self, ctx, name):
+        if name == "this":
+            name == self.currentFile.replace(".java", "")
+        ent = find_enteties_for_type_identifier(name, self.usedClasses)
+        if ent:
+            self.castIdentifier(ctx, ent)
+            return ent
 
+    def enterTypeIdentifier(self, ctx: JavaParser.TypeIdentifierContext):
+        name = ctx.getText()
+        self.handleTypeIdentifiers(ctx, name)
+
+    def enterCreatedName(self, ctx: JavaParser.CreatedNameContext):
+        for iden in ctx.identifier():
+            name = iden.getText()
+            self.handleTypeIdentifiers(iden, name)
+
+    def enterConstructorDeclaration(
+        self, ctx: JavaParser.ConstructorDeclarationContext
+    ):
+        name = ctx.identifier().getText()
+        self.handleTypeIdentifiers(ctx.identifier(), name)
+
+    def handleMethodReferences(self, ctx: JavaParser.ExpressionContext):
+        members = []
+        for child in ctx.getChildren():
+            if child.getText() != "::":
+                members.append(child)
+
+        parentEntity = self.handleTypeIdentifiers(members[0], members[0].getText())
+        ent = find_enteties_for_members(members[1].getText(), parentEntity, "method")
+        if ent:
+            self.castIdentifier(members[1], ent)
+
+    # ------------ Resolve and Rename member accesses ------------
     def resolveMemberAccess(self, ctx):
         # print("member : ", ctx.getText())
         members = []
         for child in ctx.getChildren():
             if child.getText() != ".":
                 members.append(child)
-        self.extractList(members)
+        self.extractList(members, True)
+
+    def extractList(
+        self,
+        parts,
+        isFirstIteration,
+        entity_from_last_iteration=None,
+    ):
+        left = parts[0]
+        right = parts[1:]
+
+        ent = None
+        left_name = None
+        if left.getText() == "this":
+            left_name = self.currentFile.replace(".java", "")
+        else:
+            left_name = left.getText()
+
+        if not isFirstIteration:
+            if entity_from_last_iteration is None:
+                return
+            if (
+                entity_from_last_iteration.varOrReturnType + ".java"
+                not in self.usedClasses
+            ):
+                return
+
+        if isFirstIteration:
+            ent = find_enteties_for_type_identifier(left_name, self.usedClasses)
+            if ent is None:
+                ent = self.visitExpression(left)
+        else:
+            ent = self.visitExpressionForMember(left, right, entity_from_last_iteration)
+        if ent:
+            if left.getText() != "this":
+                self.castIdentifier(left, ent)
+        else:
+            pass
+
+        # continue the process for other members if availabe
+        if len(right) > 0:
+            self.extractList(right, False, ent)
+
+    def visitExpressionForMember(self, left, right, entity_from_last_iteration):
+        ent = None
+        parentEntity = find_fileName_from_entity_type(
+            entity_from_last_iteration, self.usedClasses
+        )
+
+        if isinstance(left, JavaParser.MethodCallContext):
+            name = left.identifier().getText()
+            ent = find_enteties_for_members(name, parentEntity, "method")
+            return ent
+        else:
+            entity_types = ["field", "constant"]
+            for entity_type in entity_types:
+                if (
+                    isinstance(left, JavaParser.ExpressionContext)
+                    and left.LBRACK()
+                    and left.RBRACK()
+                ):
+                    name = left.getText()
+                    ent = find_enteties_for_members(
+                        name, parentEntity, entity_type, True
+                    )
+                    if ent:
+                        return ent
+                elif isinstance(left, JavaParser.IdentifierContext):
+                    name = left.getText()
+                    ent = find_enteties_for_members(
+                        name,
+                        parentEntity,
+                        entity_type,
+                    )
+                    if ent:
+                        return ent
+
+    # ------------ Utility Functions ------------
+    def castIdentifier(self, ctx, result):
+        # adding filters
+        ctx.start.text = result.newName
 
     def visitTerminal(self, node):
         token = node.symbol
@@ -345,52 +470,3 @@ class Renamer(JavaParserListener):
             self.out.append(token.text)
 
         return super().visitTerminal(node)
-
-    def extractList(self, parts, entity_from_last_iteration=None):
-        left = parts[0]
-        right = parts[1:]
-        
-        if left.getText() == "this":
-            left_name = self.currentFile.replace(".java", "")
-        else:
-            left_name = left.getText()
-                
-        ent = None
-        if entity_from_last_iteration is None:
-
-
-            ent = find_enteties_for_type_identifier(left_name, self.usedClasses)
-
-            if ent is None:
-                ent = self.visitExpression(left)
-        else:
-            if left.methodCall():
-                name = left.methodCall().identifier().getText()
-                ent = find_enteties_for_members(
-                    name, entity_from_last_iteration, "method"
-                )
-            else:
-                # Define entity types to search for
-                entity_types = ["localVariable", "formalParameter", "field", "constant"]
-
-                # Iterate through entity types and find matching entities
-                for entity_type in entity_types:
-                    if left.LBRACK() and left.RBRACK():
-                        name = left.getText()
-                        ent = find_enteties_for_members(
-                            name, entity_from_last_iteration, entity_type, True
-                        )
-                    elif left.primary():
-                        if left.primary().identifier():
-                            name = left.primary().identifier().getText()
-                            ent = find_enteties_for_members(
-                                name,
-                                entity_from_last_iteration,
-                                entity_type,
-                            )
-                        elif left.primary().expression():
-                            pass
-                            print("a")
-            print(left_name, ent)
-        if len(right) > 0:
-            self.extractList(right, ent)

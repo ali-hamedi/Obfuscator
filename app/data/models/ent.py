@@ -84,7 +84,7 @@ class Entity(Model):
                 parent=parent,
                 varOrReturnType=varOrReturnType,
                 value=value,
-                metadata=metadata,
+                metadata=json.dumps(metadata),
             )
             entity.save()
             return entity
