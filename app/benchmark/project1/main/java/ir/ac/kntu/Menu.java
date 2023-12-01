@@ -1,5 +1,7 @@
 package ir.ac.kntu;
 
+import java.util.Scanner;
+
 import ir.ac.kntu.views.View;
 
 public class Menu extends View {
@@ -32,6 +34,7 @@ public class Menu extends View {
         System.out.println("3-Search User");
         System.out.println("4-Add Question to Question bank");
         System.out.println("5-Show Question bank");
+        sc = new Scanner(System.in);
         return Integer.parseInt(sc.nextLine());
     }
 

@@ -1,7 +1,7 @@
 # This class defines a model for an Entity with various fields
 #  for Sqlite database in the conf folder
 #  using the Peewee ORM library in Python.
-import random,json,string
+import random, json, string
 
 
 from peewee import (
@@ -12,6 +12,7 @@ from peewee import (
     ForeignKeyField,
     TextField,
 )
+
 # Connect to db
 db = SqliteDatabase("obfuscator.db")
 
@@ -25,6 +26,7 @@ class Entity(Model):
     kind_index = IntegerField()
     KIND_CHOICES = [
         "class",  # 7
+        "constructor",  # 25
         "field",  # 27
         "method",  # 20
         "formalParameter",  # 47
@@ -59,17 +61,29 @@ class Entity(Model):
             random.choices(string.ascii_letters + string.digits, k=9)
         )
         return first_letter + rest_of_name
-    
+
     @classmethod
-    def create(cls, name, fileName, startLine, stopLine, kind_index, kind, parent, varOrReturnType, value, metadata):
+    def create(
+        cls,
+        name,
+        fileName,
+        startLine,
+        stopLine,
+        kind_index,
+        kind,
+        parent,
+        varOrReturnType,
+        value,
+        metadata,
+    ):
         try:
             # Try to get an existing record with the same values for name, fileName, startLine, stopLine, and kind_index
             existing_entity = cls.get(
-                (cls.name == name) &
-                (cls.fileName == fileName) &
-                (cls.startLine == startLine) &
-                (cls.stopLine == stopLine) &
-                (cls.kind_index == kind_index)
+                (cls.name == name)
+                & (cls.fileName == fileName)
+                & (cls.startLine == startLine)
+                & (cls.stopLine == stopLine)
+                & (cls.kind_index == kind_index)
             )
             return existing_entity
         except cls.DoesNotExist:

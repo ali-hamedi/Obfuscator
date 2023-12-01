@@ -93,23 +93,26 @@ class Executer:
                 self.projectPath,
                 packages,
                 self.filePackageConfDict[self.fileNames[i]]["relatedFiles"],
+                stream
             )
             walker = ParseTreeWalker()
             walker.walk(renamer, tree)
-            newFileContent = " ".join(renamer.out)
+            newFileContent = renamer.rewriter.getDefaultText()
             self.writeOutput(
-                i, newFileContent, self.fileNewNamesDict[self.fileNames[i]]
+                self.filePaths[i],
+                newFileContent,
+                self.fileNewNamesDict[self.fileNames[i]],
             )
 
     # ------------------ Utitility Fucntions ----------------------
 
-    def writeOutput(self, index, finalOutPut, newFileName):
+    def writeOutput(self, filePath, finalOutput, newFileName):
         javaFileName = f"{newFileName}.java"
-        writePath = self.filePaths[index].replace(self.projectName, "output")
+        writePath = filePath.replace(self.projectName, "output")
         if not os.path.exists(writePath):
             os.makedirs(writePath)
         with open(os.path.join(writePath, javaFileName), "w") as java_file:
-            java_file.write(finalOutPut)
+            java_file.write(finalOutput)
 
     def extractFilePaths(self, path: str):
         file_names_arr = []

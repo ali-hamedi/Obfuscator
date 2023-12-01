@@ -1,1 +1,0 @@
-package ir . ac . kntu . data . db ; import java . util . ArrayList ; import ir . ac . kntu . data . models . CWLBfvNLYP ; public class IoZeJsoowW { public static ArrayList < CWLBfvNLYP > UvfqA3UOtH = new ArrayList < CWLBfvNLYP > ( ) ; }

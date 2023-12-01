@@ -164,6 +164,7 @@ def find_enteties_for_members(name, parentEntity, kind, isArray=False):
             .where(Entity.name == name)
             .where(Entity.fileName == parentEntity.fileName)
             .where(Entity.kind == kind)
+            .where(Entity.parent == parentEntity)
             .where(Entity.varOrReturnType.contains("[]"))
             .first()
         )
@@ -172,16 +173,17 @@ def find_enteties_for_members(name, parentEntity, kind, isArray=False):
             Entity.select()
             .where(Entity.name == name)
             .where(Entity.fileName == parentEntity.fileName)
+            .where(Entity.parent == parentEntity)
             .where(Entity.kind == kind)
             .first()
         )
 
 
-def find_fileName_from_entity_type(parentEntity, accepted_files):
+def find_fileName_from_entity_type(varOrReturnType, accepted_files):
     return (
         Entity.select()
         .where(
-            (Entity.name == parentEntity.varOrReturnType)
+            (Entity.name == varOrReturnType)
             & (
                 (Entity.kind == "class")
                 | (Entity.kind == "enum")
@@ -204,7 +206,7 @@ def find_class_by_fileName(name):
     )
 
 
-def find_override_methods(name, parent_entity):
+def find_enteties_from_parent_class(name, parent_entity, kind):
     return (
         Entity.select()
         .where(Entity.name == name)
@@ -216,6 +218,32 @@ def find_override_methods(name, parent_entity):
                 .alias("subquery")
             )
         )
-        .where(Entity.kind == "method")
+        .where(Entity.kind == kind)
         .first()
+    )
+
+
+def find_constructor_name_based_on_class(name):
+    return (
+        Entity.select()
+        .where(
+            (Entity.name == name)
+            & (
+                (Entity.kind == "class")
+                | (Entity.kind == "enum")
+                | (Entity.kind == "interface")
+            )
+            & (Entity.fileName == current_file)
+        )
+        .first()
+    )
+
+
+def get_all_type_declarations():
+    return Entity.select().where(
+        (
+            (Entity.kind == "class")
+            | (Entity.kind == "enum")
+            | (Entity.kind == "interface")
+        )
     )

@@ -54,17 +54,18 @@ class Extractor:
                 self.compilationUnit.packageDeclaration().qualifiedName().getText()
             )
         for typeDecl in self.compilationUnit.typeDeclaration():
-            self.handleTypeDeclaration(typeDecl, None)
+            newName = self.handleTypeDeclaration(typeDecl, None)
+            self.newFileName = newName
 
     def handleTypeDeclaration(
         self, ctx: JavaParser.TypeDeclarationContext, parentEntity
     ):
         if ctx.classDeclaration():
-            self.handleClassDeclaration(ctx.classDeclaration(), parentEntity)
+            return self.handleClassDeclaration(ctx.classDeclaration(), parentEntity)
         elif ctx.enumDeclaration():
-            self.handleEnumDeclaration(ctx.enumDeclaration(), parentEntity)
+            return self.handleEnumDeclaration(ctx.enumDeclaration(), parentEntity)
         elif ctx.interfaceDeclaration():
-            self.handleInterfaceDeclaration(ctx.interfaceDeclaration(), parentEntity)
+            return self.handleInterfaceDeclaration(ctx.interfaceDeclaration(), parentEntity)
         else:
             pass
 
@@ -111,10 +112,6 @@ class Extractor:
         )
         new_class_entity.save()
 
-        # setting the new file name
-        if parentEntity is None:
-            self.newFileName = new_class_entity.newName
-
         # extracting members (fields,methods,constructor,other TypeDeclarations) from classBody
         for classBodyDeclaration in ctx.classBody().classBodyDeclaration():
             member = classBodyDeclaration.memberDeclaration()
@@ -127,13 +124,20 @@ class Extractor:
                 )
             elif member.methodDeclaration():
                 self.handleMethods(member.methodDeclaration(), new_class_entity)
-            elif (
-                member.constructorDeclaration()
-                or member.genericConstructorDeclaration()
-            ):
-                pass
+            elif member.constructorDeclaration():
+                self.handleMethods(
+                    member.constructorDeclaration(), new_class_entity, False, True
+                )
+            elif member.genericConstructorDeclaration():
+                self.handleMethods(
+                    member.genericConstructorDeclaration().constructorDeclaration(),
+                    new_class_entity,
+                    False,
+                    True,
+                )
             else:
                 self.handleTypeDeclaration(member, new_class_entity)
+        return new_class_entity.newName
 
     def handleFields(self, ctx: JavaParser.FieldDeclarationContext, parentEntity):
         # extracting the inital data from the field entity
@@ -181,6 +185,7 @@ class Extractor:
         ctx: JavaParser.MethodDeclarationContext,
         parentEntity,
         isInterfaceCommonBody=False,
+        isConstructor=False,
     ):
         # extracting the inital data from the method entity
         name = ctx.identifier().getText()
@@ -192,7 +197,13 @@ class Extractor:
         if isInterfaceCommonBody:
             kind = "interfaceCommonBody"
             kind_index = 35
-        varOrReturnType = ctx.typeTypeOrVoid().getText()
+        if isConstructor:
+            kind = "constructor"
+            kind_index = 25
+        if isConstructor:
+            varOrReturnType = parentEntity.name
+        else:
+            varOrReturnType = ctx.typeTypeOrVoid().getText()
         parent = parentEntity
         value = None
 
@@ -233,6 +244,9 @@ class Extractor:
                     parameter,
                     new_method_entity,
                 )
+        if isConstructor:
+            return
+
         # extracting entities from the method body
         for statement in ctx.methodBody().block().blockStatement():
             self.handleMethodBodyStatements(statement, new_method_entity)
@@ -514,6 +528,7 @@ class Extractor:
         if ctx.enumConstants():
             for enumConst in ctx.enumConstants().enumConstant():
                 self.handleEnumConstant(enumConst, new_enum_entity)
+        return new_enum_entity.newName
 
     def handleEnumConstant(self, ctx: JavaParser.EnumConstantContext, parentEntity):
         # extracting the inital data from the enum constant
@@ -616,6 +631,7 @@ class Extractor:
                 pass
             else:
                 self.handleTypeDeclaration(interfaceMember, new_interface_entity)
+        return new_interface_entity.newName
 
     def handleConstDeclaration(
         self, ctx: JavaParser.ConstDeclarationContext, parentEntity
