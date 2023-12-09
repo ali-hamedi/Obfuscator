@@ -65,7 +65,9 @@ class Extractor:
         elif ctx.enumDeclaration():
             return self.handleEnumDeclaration(ctx.enumDeclaration(), parentEntity)
         elif ctx.interfaceDeclaration():
-            return self.handleInterfaceDeclaration(ctx.interfaceDeclaration(), parentEntity)
+            return self.handleInterfaceDeclaration(
+                ctx.interfaceDeclaration(), parentEntity
+            )
         else:
             pass
 
@@ -210,13 +212,19 @@ class Extractor:
         # extracting meta data from the class entity such as implements,extends,...
         metadata = {}
         modifiers = []
-        if ctx.parentCtx.parentCtx.modifier():
+        if (
+            hasattr(ctx.parentCtx.parentCtx, "modifier")
+            and ctx.parentCtx.parentCtx.modifier()
+        ):
             modifiers = ctx.parentCtx.parentCtx.modifier()  # methods
-        elif ctx.parentCtx.parentCtx.parentCtx.modifier():
+        elif (
+            hasattr(ctx.parentCtx.parentCtx.parentCtx, "modifier")
+            and ctx.parentCtx.parentCtx.parentCtx.modifier()
+        ):
             modifiers = ctx.parentCtx.parentCtx.parentCtx.modifier()  # generic methods
 
         tempList = []
-        for modifier in ctx.parentCtx.parentCtx.modifier():
+        for modifier in modifiers:
             tempList.append(modifier.getText())
         metadata["modifiers"] = tempList
 
@@ -244,7 +252,7 @@ class Extractor:
                     parameter,
                     new_method_entity,
                 )
-        if isConstructor:
+        if isConstructor or isInterfaceCommonBody or (ctx.methodBody() is None )or(ctx.methodBody().block() is None):
             return
 
         # extracting entities from the method body
@@ -607,10 +615,10 @@ class Extractor:
 
         # extracting members (constants,methods,other TypeDeclarations) from interfaceBody
         for interfaceBodyDeclaration in ctx.interfaceBody().interfaceBodyDeclaration():
-            interfaceMember = interfaceBodyDeclaration.memberDeclaration()
+            interfaceMember = interfaceBodyDeclaration.interfaceMemberDeclaration()
             if interfaceMember.constDeclaration():
                 self.handleConstDeclaration(
-                    interfaceMember.fieldDeclaration(), new_interface_entity
+                    interfaceMember.constDeclaration(), new_interface_entity
                 )
             elif interfaceMember.genericInterfaceMethodDeclaration():
                 self.handleMethods(
@@ -653,7 +661,7 @@ class Extractor:
             metadata = {}
 
             modifiers = []
-            for modifier in ctx.parentCtx.modifier():
+            for modifier in ctx.parentCtx.parentCtx.modifier():
                 modifiers.append(modifier.getText())
             metadata["modifiers"] = modifiers
 

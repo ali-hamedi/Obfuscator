@@ -46,9 +46,7 @@ class Renamer(JavaParserListener):
         self.projectPackges = projectPackges
         self.projectPath = projectPath
         self.usedClasses = usedClasses
-        self.allClasses = [
-            typeDecl.fileName for typeDecl in get_all_type_declarations()
-        ]
+        self.allClasses = get_all_type_declarations()
         self.rewriter = TokenStreamRewriter(commonTokenStream)
         self.out = []
 
@@ -61,6 +59,8 @@ class Renamer(JavaParserListener):
 
         if "*" == ctx.getChild(ctx.getChildCount() - 2).getText():
             tempPath = os.path.join(self.projectPath, "java", *tempComponents)
+            if tempComponents[0] == "java":
+                return
             file_names_arr = [
                 f
                 for f in os.listdir(tempPath)
@@ -139,7 +139,9 @@ class Renamer(JavaParserListener):
             ):
                 if ent.parent.get_metadata()["extend"]:
                     class_parent = ent.parent.get_metadata()["extend"]
-                    class_parent_ent = find_class_by_fileName(class_parent)
+                    class_parent_ent = find_class_by_fileName(
+                        class_parent, self.allClasses
+                    )
 
                     temp_ent = find_enteties_from_parent_class(
                         name.getText(), class_parent_ent, "method"
@@ -150,8 +152,9 @@ class Renamer(JavaParserListener):
                 elif ent.parent.get_metadata()["implementList"]:
                     class_parents = ent.parent.get_metadata()["implementList"]
                     for class_parent in class_parents:
-                        class_parent_ent = find_class_by_fileName(class_parent)
-
+                        class_parent_ent = find_class_by_fileName(
+                            class_parent, self.allClasses
+                        )
                         temp_ent = find_enteties_from_parent_class(
                             name.getText(), class_parent_ent, "method"
                         )
@@ -187,15 +190,15 @@ class Renamer(JavaParserListener):
         if ctx.typeType():
             for variableDecl in ctx.variableDeclarators().variableDeclarator():
                 name = variableDecl.variableDeclaratorId().identifier()
-            ent = find_enteties_for_declarations(
-                name.getText(),
-                self.currentFile,
-                ctx.start.line,
-                ctx.stop.line,
-                "localVariable",
-            )
-            if ent:
-                self.castIdentifier(name, ent)
+                ent = find_enteties_for_declarations(
+                    name.getText(),
+                    self.currentFile,
+                    ctx.start.line,
+                    ctx.stop.line,
+                    "localVariable",
+                )
+                if ent:
+                    self.castIdentifier(name, ent)
 
             return
         else:
@@ -353,6 +356,8 @@ class Renamer(JavaParserListener):
         name = None
         result = None
         if type == "methodCall":
+            if ctx.SUPER():
+                return
             name = ctx.identifier().getText()
             result = find_enteties_for_methodCall(name, self.currentFile)
             if result:
@@ -361,7 +366,13 @@ class Renamer(JavaParserListener):
 
         else:
             # Define entity types to search for
-            entity_types = ["localVariable", "formalParameter", "field", "constant"]
+            entity_types = [
+                "localVariable",
+                "formalParameter",
+                "field",
+                "constant",
+                "enumConstant",
+            ]
 
             # Iterate through entity types and find matching entities
             for entity_type in entity_types:
@@ -388,44 +399,75 @@ class Renamer(JavaParserListener):
                 if result:
                     self.castIdentifier(ctx, result)
                     return result
-
         # inheritance
         temp_ent = None
-        ent = find_class_by_fileName(self.currentFile.replace(".java", ""))
-        if type == "methodCall":
-            name = ctx.identifier()
-            kind = "method"
+        ent = find_class_by_fileName(
+            self.currentFile.replace(".java", ""), self.allClasses
+        )
+        kinds = [
+            "localVariable",
+            "formalParameter",
+            "field",
+            "constant",
+            "enumConstant",
+        ]
         if type == "array":
             name = ctx
-            kind = "field"
         elif type == "primary":
             name = ctx.identifier()
-            kind = "field"
+        elif type == "methodCall":
+            name = ctx.identifier()
+            kinds = ["method", "interfaceCommonBody"]
 
-        if ent.get_metadata()["extend"]:
+        if "extend" in ent.get_metadata() and ent.get_metadata()["extend"]:
             class_parent = ent.get_metadata()["extend"]
-            class_parent_ent = find_class_by_fileName(class_parent)
-            temp_ent = find_enteties_from_parent_class(
-                name.getText(), class_parent_ent, kind
-            )
-        elif ent.get_metadata()["implementList"]:
-            class_parents = ent.get_metadata()["implementList"]
-            for class_parent in class_parents:
-                class_parent_ent = find_class_by_fileName(class_parent)
+            class_parent_ent = find_class_by_fileName(class_parent, self.allClasses)
+            for kind in kinds:
                 temp_ent = find_enteties_from_parent_class(
                     name.getText(), class_parent_ent, kind
                 )
-        if temp_ent:
-            self.castIdentifier(name, temp_ent)
-            return
+                if temp_ent:
+                    self.castIdentifier(name, temp_ent)
+                    return
+        elif (
+            "implementList" in ent.get_metadata()
+            and ent.get_metadata()["implementList"]
+        ):
+            class_parents = ent.get_metadata()["implementList"]
+            for class_parent in class_parents:
+                class_parent_ent = find_class_by_fileName(class_parent, self.allClasses)
+                for kind in kinds:
+                    temp_ent = find_enteties_from_parent_class(
+                        name.getText(), class_parent_ent, kind
+                    )
+                    if temp_ent:
+                        self.castIdentifier(name, temp_ent)
+                        return
         if type == "primary":
-            self.handleTypeIdentifiers(ctx.identifier(), ctx.identifier().getText())
+            ent = self.handleTypeIdentifiers(
+                ctx.identifier(), ctx.identifier().getText()
+            )
+
+            if ent is None:
+                ent = self.handleGlobalIdentifiers(
+                    ctx.identifier(), ctx.identifier().getText()
+                )
 
     # ------------ Resolve type identifiers  & special cases------------
     def handleTypeIdentifiers(self, ctx, name):
         if name == "this":
             name == self.currentFile.replace(".java", "")
         ent = find_enteties_for_type_identifier(name, self.usedClasses)
+        if ent:
+            self.castIdentifier(ctx, ent)
+            return ent
+
+    def handleGlobalIdentifiers(self, ctx, name):
+        if name == "this":
+            name == self.currentFile.replace(".java", "")
+        ent = find_enteties_for_global_identifier(
+            name, [classEnt.fileName for classEnt in self.allClasses]
+        )
         if ent:
             self.castIdentifier(ctx, ent)
             return ent
@@ -452,11 +494,12 @@ class Renamer(JavaParserListener):
                 members.append(child)
         if len(members) > 0:
             parentEntity = self.handleTypeIdentifiers(members[0], members[0].getText())
-            ent = find_enteties_for_members(
-                members[1].getText(), parentEntity, "method"
-            )
-            if ent:
-                self.castIdentifier(members[1], ent)
+            if parentEntity:  # check for not Map.Entry::getKey, Map.Entry::getValue,
+                ent = find_enteties_for_members(
+                    members[1].getText(), parentEntity, "method"
+                )
+                if ent:
+                    self.castIdentifier(members[1], ent)
 
     # ------------ Resolve and Rename member accesses ------------
     def resolveMemberAccess(self, ctx):
@@ -512,7 +555,7 @@ class Renamer(JavaParserListener):
                     else:
                         return
 
-            if varOrReturnType + ".java" not in self.allClasses:
+            if varOrReturnType not in [classEnt.name for classEnt in self.allClasses]:
                 return
 
         ent = None
@@ -536,13 +579,20 @@ class Renamer(JavaParserListener):
 
     def visitExpressionForMember(self, left, right, varOrReturnType):
         ent = None
-        parentEntity = find_fileName_from_entity_type(varOrReturnType, self.allClasses)
+        parentEntity = find_fileName_from_entity_type(
+            varOrReturnType, [classEnt.fileName for classEnt in self.allClasses]
+        )
 
         if isinstance(left, JavaParser.MethodCallContext):
             name = left.identifier().getText()
 
             ent = find_enteties_for_members(name, parentEntity, "method")
-            return ent
+            if ent is None:
+                ent = find_enteties_for_members(
+                    name, parentEntity, "interfaceCommonBody"
+                )
+            if ent:
+                return ent
         else:
             entity_types = ["field", "constant", "enumConstant"]
             for entity_type in entity_types:
@@ -566,6 +616,58 @@ class Renamer(JavaParserListener):
                     )
                     if ent:
                         return ent
+
+        # inheritance
+
+        temp_ent = None
+        class_parent_ent = find_class_by_fileName(varOrReturnType, self.allClasses)
+        while class_parent_ent is not None:
+            kinds = [
+                "localVariable",
+                "formalParameter",
+                "field",
+                "constant",
+                "enumConstant",
+            ]
+            if (
+                isinstance(left, JavaParser.ExpressionContext)
+                and left.LBRACK()
+                and left.RBRACK()
+            ) or isinstance(left, JavaParser.IdentifierContext):
+                name = left
+            elif isinstance(left, JavaParser.MethodCallContext):
+                name = left.identifier()
+                kinds = ["method", "interfaceCommonBody"]
+
+            if (
+                class_parent_ent
+                and "extend" in class_parent_ent.get_metadata()
+                and class_parent_ent.get_metadata()["extend"]
+            ):
+                class_parent = class_parent_ent.get_metadata()["extend"]
+                class_parent_ent = find_class_by_fileName(class_parent, self.allClasses)
+                for kind in kinds:
+                    temp_ent = find_enteties_from_parent_class(
+                        name.getText(), class_parent_ent, kind
+                    )
+                    if temp_ent:
+                        return temp_ent
+            elif (
+                class_parent_ent
+                and "implementList" in class_parent_ent.get_metadata()
+                and class_parent_ent.get_metadata()["implementList"]
+            ):
+                class_parents = class_parent_ent.get_metadata()["implementList"]
+                for class_parent in class_parents:
+                    class_parent_ent = find_class_by_fileName(class_parent, self.allClasses)
+                    for kind in kinds:
+                        temp_ent = find_enteties_from_parent_class(
+                            name.getText(), class_parent_ent, kind
+                        )
+                        if temp_ent:
+                            return temp_ent
+            else:
+                return
 
     # ------------ Utility Functions ------------
     def castIdentifier(self, ctx, result):
