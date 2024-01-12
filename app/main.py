@@ -7,7 +7,7 @@ from app.data.db import *
 
 __projectName = "project2"   
 
-def main():
+def main(): 
     initialize_database()
     executer = Executer(__projectName)
     executer.execute()

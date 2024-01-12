@@ -7,6 +7,7 @@ import java.util.Map;
 
 import ir.ac.kntu.Global;
 import ir.ac.kntu.data.models.*;
+import ir.ac.kntu.Main;
 
 public class Exercisecontroller {
 
@@ -86,6 +87,5 @@ public class Exercisecontroller {
         }
         Global.currentExercise.setScoreTable(scoreTable);
     }
-
 
 }

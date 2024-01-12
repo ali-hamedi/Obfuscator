@@ -6,6 +6,7 @@ import ir.ac.kntu.Global;
 import ir.ac.kntu.controller.Coursecontroller;
 import ir.ac.kntu.data.db.Database;
 import ir.ac.kntu.data.models.*;
+import ir.ac.kntu.Main;
 
 public class Courseview extends View {
 

@@ -8,6 +8,10 @@ import ir.ac.kntu.views.Userview;
 import ir.ac.kntu.controller.Usercontroller;
 import ir.ac.kntu.views.Courseview;
 import ir.ac.kntu.views.View;
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.util.Base64;
 
 public class Main {
     public static Scanner sc = new Scanner(System.in);
@@ -16,8 +20,45 @@ public class Main {
         Usercontroller.register("ali", "ali", "ali@gmail.com", "123", 123, 123);
         Usercontroller.register("mmd", "mmd", "mmd@gmail.com", "123", 456, 456);
         Usercontroller.register("meti", "meti", "meti@gmail.com", "123", 456, 456);
+        int a = Global.currentCourse.getName().length();
         while (true) {
             mainFunc();
+        }
+    }
+
+    public static String decode(String encryptedText) {
+        try {
+
+            // Decode the base64-encoded string
+            byte[] encryptedData = Base64.getDecoder().decode(encryptedText);
+
+            // Extract the IV and ciphertext
+            byte[] iv = new byte[16];
+            byte[] ciphertext = new byte[encryptedData.length - 16];
+            System.arraycopy(encryptedData, 0, iv, 0, 16);
+            System.arraycopy(encryptedData, 16, ciphertext, 0, ciphertext.length);
+
+            // Your secret key (should be the same as the one used for encryption)
+            byte[] key = "aaaaaaaaaaaaaaaa".getBytes(); // 16-byte key
+
+            // Create an AES cipher object
+            Cipher cipher = Cipher.getInstance("AES/CFB/PKCS5Padding");
+            SecretKeySpec secretKeySpec = new SecretKeySpec(key, "AES");
+            IvParameterSpec ivParameterSpec = new IvParameterSpec(iv);
+            cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, ivParameterSpec);
+
+            // Decrypt the ciphertext
+            byte[] decryptedBytes = cipher.doFinal(ciphertext);
+
+            // Remove PKCS7 padding
+            int paddingLength = decryptedBytes[decryptedBytes.length - 1];
+            byte[] unpaddedBytes = new byte[decryptedBytes.length - paddingLength];
+            System.arraycopy(decryptedBytes, 0, unpaddedBytes, 0, unpaddedBytes.length);
+
+            // Convert the decrypted bytes to a UTF-8 string
+            return new String(unpaddedBytes, "UTF-8");
+        } catch (Exception e) {
+            return "Error";
         }
     }
 
@@ -147,7 +188,7 @@ public class Main {
                 break;
             case 45:
                 Questionview.gradeQuestion();
-                break;            
+                break;
             case 46:
                 Questionview.getSubmitsAndPoints();
                 break;

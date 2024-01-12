@@ -2,7 +2,6 @@ from peewee import SqliteDatabase
 from peewee import fn
 from os import path
 from app.data.models.ent import Entity
-from app.data.models.ref import Reference
 
 """
     This code initializes a SQLite database connection,creates tables if they don't exist, and
@@ -20,7 +19,7 @@ def initialize_database():
     db.connect()
 
     # Create tables if they don't exist
-    db.create_tables([Reference, Entity])
+    db.create_tables([Entity])
 
     # Additional initialization logic if needed
 
@@ -42,16 +41,6 @@ def clear_database():
         Entity._meta.database.execute_sql("PRAGMA foreign_keys=off;")
         Entity._meta.database.execute_sql("DELETE FROM entity WHERE name = 'entity';")
         Entity._meta.database.execute_sql("PRAGMA foreign_keys=on;")
-
-        # Delete all rows from the Reference table
-        Reference.truncate_table()
-
-        # Reset the primary key sequence for the Reference table
-        Reference._meta.database.execute_sql("PRAGMA foreign_keys=off;")
-        Reference._meta.database.execute_sql(
-            "DELETE FROM reference WHERE name = 'reference';"
-        )
-        Reference._meta.database.execute_sql("PRAGMA foreign_keys=on;")
 
     except Exception as e:
         print(f"Error clearing the database: {e}")
@@ -127,7 +116,7 @@ def find_enteties_for_methodCall(name, current_file):
 def find_enteties_for_declarations(name, current_file, start_line, stop_line, kind):
     return (
         Entity.select()
-        .where(Entity.name == name)
+        .where((Entity.name == name))
         .where(Entity.fileName == current_file)
         .where(Entity.kind == kind)
         .where(Entity.startLine == start_line)
@@ -321,4 +310,134 @@ def get_all_type_declarations():
             | (Entity.kind == "enum")
             | (Entity.kind == "interface")
         )
+    )
+
+
+def find_renamed_enteties_for_array(name, current_file, start_line, stop_line, kind):
+    return (
+        Entity.select()
+        .where(Entity.newName == name)
+        .where(Entity.fileName == current_file)
+        .where(Entity.varOrReturnType.contains("[]"))
+        .where(Entity.kind == kind)
+        .where(Entity.startLine <= start_line)
+        .where(
+            Entity.parent_id.in_(
+                Entity.select(Entity.id)
+                .where(Entity.startLine <= start_line)
+                .where(Entity.stopLine >= stop_line)
+                .alias("subquery")
+            )
+        )
+        .order_by(Entity.startLine.desc())
+        .first()
+    )
+
+
+def find_renamed_enteties_for_primary(name, current_file, start_line, stop_line, kind):
+    if kind == "localVariable" or kind == "formalParameter":
+        return (
+            Entity.select()
+            .where(Entity.newName == name)
+            .where(Entity.fileName == current_file)
+            .where(Entity.kind == kind)
+            .where(Entity.startLine <= start_line)
+            .where(
+                Entity.parent_id.in_(
+                    Entity.select(Entity.id)
+                    .where(Entity.startLine <= start_line)
+                    .where(Entity.stopLine >= stop_line)
+                    .alias("subquery")
+                )
+            )
+            .order_by(Entity.startLine.desc())
+            .first()
+        )
+    else:
+        return (
+            Entity.select()
+            .where(Entity.newName == name)
+            .where(Entity.fileName == current_file)
+            .where(Entity.kind == kind)
+            .where(Entity.startLine <= start_line)
+            .order_by(Entity.startLine.desc())
+            .first()
+        )
+
+
+def find_renamed_enteties_from_parent_class(name, parent_entity, kind):
+    return (
+        Entity.select()
+        .where(Entity.newName == name)
+        .where(Entity.parent == parent_entity)
+        .where(
+            Entity.parent_id.in_(
+                Entity.select(Entity.id)
+                .where(Entity.fileName == parent_entity.fileName)
+                .alias("subquery")
+            )
+        )
+        .where(Entity.kind == kind)
+        .first()
+    )
+
+
+def find_renamed_enteties_for_type_identifier(name, accepted_files):
+    return (
+        Entity.select()
+        .where(
+            (Entity.newName == name)
+            & (
+                (Entity.kind == "class")
+                | (Entity.kind == "enum")
+                | (Entity.kind == "interface")
+            )
+            & (Entity.fileName << accepted_files)
+        )
+        .first()
+    )
+
+
+def find_renamed_enteties_for_members(name, parentEntity, kind, isArray=False):
+    if isArray:
+        return (
+            Entity.select()
+            .where(Entity.newName == name)
+            .where(Entity.fileName == parentEntity.fileName)
+            .where(Entity.kind == kind)
+            .where(Entity.parent == parentEntity)
+            .where(Entity.varOrReturnType.contains("[]"))
+            .first()
+        )
+    elif kind == "method":
+        return (
+            Entity.select()
+            .where(Entity.newName == name)
+            .where(Entity.fileName == parentEntity.fileName)
+            .where((Entity.kind == "method") | (Entity.kind == "interfaceCommonBody"))
+            .where(Entity.parent == parentEntity)
+            .first()
+        )
+    else:
+        return (
+            Entity.select()
+            .where(Entity.newName == name)
+            .where(Entity.fileName == parentEntity.fileName)
+            .where(Entity.parent == parentEntity)
+            .where(Entity.kind == kind)
+            .first()
+        )
+
+
+def find_renamed_enteties_for_methodCall(name, current_file):
+    # todo : signature
+    return (
+        Entity.select()
+        .where(
+            (Entity.newName == name)
+            & (Entity.fileName == current_file)
+            & ((Entity.kind == "method") | (Entity.kind == "interfaceCommonBody"))
+        )
+        .order_by(Entity.startLine.desc())
+        .first()
     )

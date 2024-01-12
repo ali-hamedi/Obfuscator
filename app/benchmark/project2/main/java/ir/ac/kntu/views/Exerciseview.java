@@ -6,6 +6,7 @@ import java.util.Calendar;
 import ir.ac.kntu.Global;
 import ir.ac.kntu.controller.Exercisecontroller;
 import ir.ac.kntu.data.models.*;
+import ir.ac.kntu.Main;
 
 public class Exerciseview extends View {
 
@@ -62,22 +63,22 @@ public class Exerciseview extends View {
             showResult("Enter valid number");
         } else {
             System.out.println("Modify the exercise:");
-            System.out.print("Name"+"(old name was  " + arr.get(n - 1).getName() + ") :");
+            System.out.print("Name" + "(old name was  " + arr.get(n - 1).getName() + ") :");
             String name = sc.nextLine();
-            System.out.print("Description:"+"(old name was  " + arr.get(n - 1).getDescription() + ") :");
+            System.out.print("Description:" + "(old name was  " + arr.get(n - 1).getDescription() + ") :");
             String description = sc.nextLine();
             System.out.print("Start Month:");
             System.out.print("(old name was  " + arr.get(n - 1).getStartTime().getMonth() + ") :");
             int month = Integer.parseInt(sc.nextLine());
-            System.out.print("Start Day:"+"(old name was  " + arr.get(n - 1).getStartTime().getDay() + ") :");
+            System.out.print("Start Day:" + "(old name was  " + arr.get(n - 1).getStartTime().getDay() + ") :");
             int day = Integer.parseInt(sc.nextLine());
             int number1 = arr.get(n - 1).getEndTime().getDay() - arr.get(n - 1).getStartTime().getDay();
-            System.out.print("Deadline length in days:"+"(old name was  " + number1 + ") :");
+            System.out.print("Deadline length in days:" + "(old name was  " + number1 + ") :");
             int length = Integer.parseInt(sc.nextLine());
             int number2 = arr.get(n - 1).getEndTimeAfterLatency().getDay() - arr.get(n - 1).getEndTime().getDay();
-            System.out.print("Deadline length in days after latency:"+"(old name was  " + number2 + ") :");
+            System.out.print("Deadline length in days after latency:" + "(old name was  " + number2 + ") :");
             int latencyDuration = Integer.parseInt(sc.nextLine());
-            System.out.print("You want the Exercise to be beta:"+"(old name was  " + arr.get(n - 1).isBeta() + ") :");
+            System.out.print("You want the Exercise to be beta:" + "(old name was  " + arr.get(n - 1).isBeta() + ") :");
             String beta = sc.nextLine();
             boolean isBeta = false;
             if (beta.equals("yes")) {

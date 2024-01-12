@@ -7,6 +7,7 @@ import ir.ac.kntu.data.db.*;
 import ir.ac.kntu.data.models.*;
 import ir.ac.kntu.data.models.enums.*;
 import ir.ac.kntu.controller.*;
+import ir.ac.kntu.Main;
 
 public class View {
     public static Scanner sc = new Scanner(System.in);

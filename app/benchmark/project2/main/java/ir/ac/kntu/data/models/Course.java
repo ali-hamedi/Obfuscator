@@ -2,6 +2,7 @@ package ir.ac.kntu.data.models;
 
 import java.util.ArrayList;
 import java.util.Objects;
+import ir.ac.kntu.Main;
 
 public class Course {
 
@@ -32,7 +33,7 @@ public class Course {
         this.description = description;
         this.institution = institution;
         this.teacher = teacher;
-        this.year = year;
+        this.year = this.name.length();
         this.isOpen = isOpen;
         this.isOpen = isOpen;
         this.isPublic = isPublic;

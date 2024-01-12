@@ -7,6 +7,7 @@ import ir.ac.kntu.controller.*;
 import ir.ac.kntu.data.db.Questionbank;
 import ir.ac.kntu.data.models.*;
 import ir.ac.kntu.data.models.enums.*;
+import ir.ac.kntu.Main;
 
 public class Questionview extends View {
     public static void addQuestion() {
@@ -110,7 +111,8 @@ public class Questionview extends View {
             String description = sc.nextLine();
             System.out.print("Points:" + "(old name was  " + arr.get(n - 1).getPoint() + ") :");
             int point = Integer.parseInt(sc.nextLine());
-            System.out.print("Type(from 1-blankSpace,2-descriptive,3-multiChoice):" + "(old name was  "+ arr.get(n - 1).getType() + ") :");
+            System.out.print("Type(from 1-blankSpace,2-descriptive,3-multiChoice):" + "(old name was  "
+                    + arr.get(n - 1).getType() + ") :");
             Type typ = Questioncontroller.getQuestionTypeByInt(Integer.parseInt(sc.nextLine()));
             String answer = "";
             String body = "";
@@ -133,9 +135,11 @@ public class Questionview extends View {
                 System.out.print("Answer:");
                 answer = sc.nextLine();
             }
-            System.out.print("Diffculty(from 1-easy,2-medium,3-hard,4-very hard):" + "(old name was  "+ arr.get(n - 1).getDifficulty() + ") :");
+            System.out.print("Diffculty(from 1-easy,2-medium,3-hard,4-very hard):" + "(old name was  "
+                    + arr.get(n - 1).getDifficulty() + ") :");
             Difficulty diff = Questioncontroller.getQuestionDifficultyByInt(Integer.parseInt(sc.nextLine()));
-            showResult(Questioncontroller.modifyQuestion(arr.get(n - 1),new Question(name, description, body, point, diff, typ, answer)));
+            showResult(Questioncontroller.modifyQuestion(arr.get(n - 1),
+                    new Question(name, description, body, point, diff, typ, answer)));
         }
     }
 

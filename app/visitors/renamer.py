@@ -4,7 +4,6 @@ from app.gen.JavaLexer import JavaLexer
 from app.gen.JavaParser import JavaParser
 from app.gen.JavaParserListener import JavaParserListener
 from app.data.models.ent import Entity
-from app.data.models.ref import Reference
 from app.data.db import *
 from antlr4 import *
 from antlr4.TokenStreamRewriter import *
@@ -124,6 +123,9 @@ class Renamer(JavaParserListener):
 
     def enterMethodDeclaration(self, ctx: JavaParser.MethodDeclarationContext):
         name = ctx.identifier()
+        if self.currentFile == "Main.java" and name == "main":
+            # todo handle main entry point of the program
+            return
         ent = find_enteties_for_declarations(
             name.getText(),
             self.currentFile,
@@ -308,6 +310,22 @@ class Renamer(JavaParserListener):
     # ------------ Rename refrencess (primary + expressions) ------------
     def enterExpression(self, ctx: JavaParser.ExpressionContext):
         self.visitExpression(ctx)
+    def exitExpression(self,ctx:JavaParser.ExpressionContext):
+        if ctx.bop and ctx.bop.text in (
+            "+=",
+            "-=",
+            "*=",
+            "/=",
+            "&=",
+            "|=",
+            "^=",
+            ">>=",
+            ">>>=",
+            "<<=",
+            "%=",
+        ):
+            self.rewriter.replaceRangeTokens(ctx.start,ctx.stop,f"{ctx.getChild(0).getText()} = {ctx.getChild(0).getText()} {ctx.bop.text.split('=')[0]} {ctx.getChild(2).getText()}")
+        
 
     def visitExpression(self, ctx: JavaParser.ExpressionContext):
         if ctx.primary():
@@ -672,4 +690,5 @@ class Renamer(JavaParserListener):
     # ------------ Utility Functions ------------
     def castIdentifier(self, ctx, result):
         # adding filters
-        self.rewriter.replaceSingleToken(ctx.start, result.newName)
+
+        self.rewriter.replaceSingleToken(ctx.start,result.newName)

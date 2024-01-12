@@ -2,7 +2,6 @@ from app.gen.JavaLexer import JavaLexer
 from app.gen.JavaParser import JavaParser
 from app.gen.JavaParserListener import JavaParserListener
 from app.data.models.ent import Entity
-from app.data.models.ref import Reference
 from app.data.db import *
 from antlr4 import *
 
@@ -422,7 +421,7 @@ class Extractor:
             elif ctx.expression().primary().literal().CHAR_LITERAL:
                 varOrReturnType = "char"
             elif ctx.expression().primary().literal().BOOL_LITERAL:
-                varOrReturnType = "bool"
+                varOrReturnType = "boolean"
             value = ctx.expression().getText()
 
             # extracting meta data from the local variable entity such as modifiers,...

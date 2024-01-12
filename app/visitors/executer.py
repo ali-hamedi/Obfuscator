@@ -4,6 +4,7 @@ from os import path, walk
 from antlr4 import *
 from app.visitors.extractor import Extractor
 from app.visitors.renamer import Renamer
+from app.visitors.encryptor import Encryptor
 from app.gen.JavaLexer import JavaLexer
 from app.gen.JavaParser import JavaParser
 
@@ -18,6 +19,7 @@ class Executer:
         self.fileNames = []
         self.fileNewNamesDict = {}
         self.filePackageConfDict = {}
+        self.filesTokenStreamDict = {}
 
     def execute(self):
         print("\nStarting......\n")
@@ -37,6 +39,13 @@ class Executer:
         self.renameEnteties()
         endingTime = time.time()
         print(f"Renamed in   {endingTime - startingTime}\n")
+
+        # encryption step
+        print("Encrypting Begin ...")
+        startingTime = time.time()
+        self.encryptEnteties()
+        endingTime = time.time()
+        print(f"Encrypted in   {endingTime - startingTime}\n")
 
     # ------------------- Primary Functions ----------------------
     def extractEnteties(self):
@@ -61,11 +70,14 @@ class Executer:
             tempPath = os.path.join(
                 self.projectPath, "java", *extractor.packageName.split(".")
             )
-            file_names_arr = [
-                f
-                for f in os.listdir(tempPath)
-                if os.path.isfile(os.path.join(tempPath, f))
-            ]
+            if extractor.packageName == "":
+                file_names_arr = []
+            else:
+                file_names_arr = [
+                    f
+                    for f in os.listdir(tempPath)
+                    if os.path.isfile(os.path.join(tempPath, f))
+                ]
             self.filePackageConfDict[self.fileNames[i]] = {
                 "package": extractor.packageName,
                 "relatedFiles": file_names_arr,
@@ -85,34 +97,56 @@ class Executer:
             tree = parser.compilationUnit()
 
             # renaming the self.fileNames along the walk
-            packages = ages = [
-                file["package"] for file in self.filePackageConfDict.values()
-            ]
+            packages = [file["package"] for file in self.filePackageConfDict.values()]
             renamer = Renamer(
                 self.fileNames[i],
                 self.projectPath,
                 packages,
                 self.filePackageConfDict[self.fileNames[i]]["relatedFiles"],
-                stream
+                stream,
             )
             walker = ParseTreeWalker()
             walker.walk(renamer, tree)
-            newFileContent = renamer.rewriter.getDefaultText()
+            self.filesTokenStreamDict[
+                self.fileNames[i]
+            ] = renamer.rewriter.getDefaultText()
+
+    def encryptEnteties(self):
+        for i in range(len(self.fileNames)):
+            # read the java file,tokenize it,parse it Then walk into the AST
+            input_text = self.filesTokenStreamDict[self.fileNames[i]]
+            input_stream = InputStream(input_text)
+            lexer = JavaLexer(input_stream)
+            stream = CommonTokenStream(lexer)
+            stream.fill()
+            parser = JavaParser(stream)
+            tree = parser.compilationUnit()
+
+            encryptor = Encryptor(
+                self.fileNames[i],
+                stream,
+                self.filePackageConfDict[self.fileNames[i]]["relatedFiles"],
+            )
+            walker = ParseTreeWalker()
+            walker.walk(encryptor, tree)
+            self.filesTokenStreamDict[
+                self.fileNames[i]
+            ] = encryptor.rewriter.getDefaultText()
             self.writeOutput(
                 self.filePaths[i],
-                newFileContent,
+                self.fileNames[i],
                 self.fileNewNamesDict[self.fileNames[i]],
             )
 
     # ------------------ Utitility Fucntions ----------------------
 
-    def writeOutput(self, filePath, finalOutput, newFileName):
+    def writeOutput(self, filePath, fileName, newFileName):
         javaFileName = f"{newFileName}.java"
         writePath = filePath.replace(self.projectName, "output")
         if not os.path.exists(writePath):
             os.makedirs(writePath)
         with open(os.path.join(writePath, javaFileName), "w") as java_file:
-            java_file.write(finalOutput)
+            java_file.write(self.filesTokenStreamDict[fileName])
 
     def extractFilePaths(self, path: str):
         file_names_arr = []

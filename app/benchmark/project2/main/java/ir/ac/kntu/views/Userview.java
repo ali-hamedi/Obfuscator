@@ -2,6 +2,7 @@ package ir.ac.kntu.views;
 
 import ir.ac.kntu.Global;
 import ir.ac.kntu.controller.Usercontroller;
+import ir.ac.kntu.Main;
 
 public class Userview extends View {
 

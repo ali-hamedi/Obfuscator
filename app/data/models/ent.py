@@ -99,6 +99,7 @@ class Entity(Model):
                 varOrReturnType=varOrReturnType,
                 value=value,
                 metadata=json.dumps(metadata),
+                newName=name,
             )
             entity.save()
             return entity

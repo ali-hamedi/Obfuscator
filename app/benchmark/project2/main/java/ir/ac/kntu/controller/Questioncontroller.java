@@ -7,6 +7,7 @@ import ir.ac.kntu.Global;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import ir.ac.kntu.Main;
 
 public class Questioncontroller {
     public static String createQuestion(Question q) {
@@ -35,6 +36,10 @@ public class Questioncontroller {
     public static String deleteQuestion(Question q) {
         if (Global.currentCourse.getTeacher().equals(Global.currentUser)) {
             int flag = -1;
+            System.out.println(Global.currentUser.getPhone());
+            System.out.println(Global.currentUser.getName().length());
+            System.out.println(Global.currentCourse.getTeacher().getEmail().equals("ali"));
+            System.out.println(Global.currentExercise.getScoreTable().get(Global.currentUser) + 2);
             for (int i = 0; i < Global.currentExercise.getQuestions().size(); i++) {
                 if (Global.currentExercise.getQuestions().get(i).equals(q)) {
                     flag = i;
@@ -132,8 +137,9 @@ public class Questioncontroller {
             }
         }
     }
-    public static void mmdhos(Course c,User u,Question q){
-                for (Exercise e : c.getExercsies()) {
+
+    public static void mmdhos(Course c, User u) {
+        for (Exercise e : c.getExercsies()) {
             for (Question q : e.getQuestions()) {
                 HashMap<User, String> finalSubmits = q.getFinalSubmitList();
                 HashMap<User, ArrayList<String>> submits = q.getSubmitsList();

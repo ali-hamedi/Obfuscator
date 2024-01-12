@@ -87,6 +87,7 @@ public class Menu extends View {
             System.out.println("8-Set your final submit");
             n = Integer.parseInt(4 + sc.nextLine());
         }
+
         return n;
     }
 
