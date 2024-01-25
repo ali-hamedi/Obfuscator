@@ -5,7 +5,7 @@ from os import walk, path
 from app.visitors.executer import Executer
 from app.data.db import *
 
-__projectName = "project3"   
+__projectName = "project2"   
 
 def main(): 
     initialize_database()

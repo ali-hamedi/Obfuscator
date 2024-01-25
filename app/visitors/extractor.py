@@ -151,7 +151,11 @@ class Extractor:
             kind = "field"
             parent = parentEntity
             varOrReturnType = ctx.typeType().getText()
-            # todo: more specific  variableInitializer: arrayInitializer | expression;
+            if (
+                variableDecl.variableDeclaratorId().LBRACK()
+                and variableDecl.variableDeclaratorId().RBRACK()
+            ):
+                varOrReturnType = ctx.typeType().getText() + "[]"
             value = None
             if variableDecl.variableInitializer():
                 value = variableDecl.variableInitializer().getText()
@@ -251,7 +255,11 @@ class Extractor:
                     parameter,
                     new_method_entity,
                 )
-        if isConstructor or (ctx.methodBody() is None ) or (ctx.methodBody().block() is None):
+        if (
+            isConstructor
+            or (ctx.methodBody() is None)
+            or (ctx.methodBody().block() is None)
+        ):
             return
 
         # extracting entities from the method body
@@ -269,6 +277,8 @@ class Extractor:
         kind_index = 47
         parent = parentEntity
         varOrReturnType = ctx.typeType().getText()
+        if ctx.variableDeclaratorId().LBRACK() and ctx.variableDeclaratorId().RBRACK():
+            varOrReturnType = ctx.typeType().getText() + "[]"
         value = None
         metadata = {}
 
@@ -373,7 +383,11 @@ class Extractor:
                 kind_index = 80
                 parent = parentEntity
                 varOrReturnType = ctx.typeType().getText()
-                # todo: more specific  variableInitializer: arrayInitializer | expression;
+                if (
+                    variableDecl.variableDeclaratorId().LBRACK()
+                    and variableDecl.variableDeclaratorId().RBRACK()
+                ):
+                    varOrReturnType = ctx.typeType().getText() + "[]"
                 value = None
                 if variableDecl.variableInitializer():
                     value = variableDecl.variableInitializer().getText()
@@ -461,7 +475,11 @@ class Extractor:
             varOrReturnType = None
             if currentCtx.typeType():
                 varOrReturnType = currentCtx.typeType().getText()
-            # todo: more specific  variableInitializer: arrayInitializer | expression;
+                if (
+                    currentCtx.variableDeclaratorId().LBRACK()
+                    and currentCtx.variableDeclaratorId().RBRACK()
+                ):
+                    varOrReturnType = currentCtx.typeType().getText() + "[]"
             value = None
             value = currentCtx.expression().getText()
             # extracting meta data from the local variable entity such as modifiers,...

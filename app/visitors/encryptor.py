@@ -148,14 +148,17 @@ class Encryptor(JavaParserListener):
             self.handleInitializations(constantDecl.variableInitializer())
 
     def handleInitializations(self, ctx: JavaParser.VariableInitializerContext):
+        name = None
         ancestor = None
         if isinstance(ctx.parentCtx, JavaParser.ConstantDeclaratorContext):
             # constDeclaration -> constantDeclarator -> variableInitializer
+            name = parentCtx.identifier().getText()
             ancestor = ctx.parentCtx.parentCtx
         elif isinstance(ctx.parentCtx, JavaParser.VariableDeclaratorContext):
             # field/local variable -> variableDeclarators -> variableDeclarator -> variableInitializer
+            name = ctx.parentCtx.variableDeclaratorId().identifier().getText()
             ancestor = ctx.parentCtx.parentCtx.parentCtx
-        
+
         # VariableIntializer -> ArrayIntilizer -> VariableIntializer
         if ctx.arrayInitializer():
             return
@@ -164,9 +167,13 @@ class Encryptor(JavaParserListener):
 
         self.modifyDataType(ancestor.typeType())
 
-        self.handleRightSide(
-            ctx.expression(), self.isEncodable(ancestor.typeType().getText())
-        )
+        for kind in ["localVariable", "field", "constant"]:
+            ent = find_enteties_for_declarations(
+                name, self.currentFile, ctx.start.line, ctx.stop.line, kind
+            )
+            if ent:
+                self.handleRightSide(ctx.expression(), self.isEncodable(ent))
+                return
 
     # ---------- handling assignments (expressions with 'op=' bop) ------------
     def handleAssignments(self, ctx: JavaParser.ExpressionContext):
@@ -180,7 +187,7 @@ class Encryptor(JavaParserListener):
                 "formalParameter",
                 "enumConstant",
             ]:
-                self.handleRightSide(right, self.isEncodable(ent.varOrReturnType))
+                self.handleRightSide(right, self.isEncodable(ent))
             else:
                 self.handleRightSide(right, False)
 
@@ -313,13 +320,7 @@ class Encryptor(JavaParserListener):
             t = t.parentCtx
         members = self.memberFinder(t)
         ent, lastChild = self.extractList(members, True)
-        if (
-            ent
-            and self.isEncodable(ent.varOrReturnType)
-            and ent.kind
-            not in ["method", "interfaceCommonBody", "formalParameter", "enumConstant"]
-            and encode
-        ):
+        if ent and self.isEncodable(ent) and encode:
             for token_type, transform_format in self.type_to_transform.items():
                 if token_type == ent.varOrReturnType and ent.varOrReturnType:
                     temp = transform_format.format("|")
@@ -713,10 +714,18 @@ class Encryptor(JavaParserListener):
             newDataType = newDataType.replace(elemnt, "String")
         self.rewriter.replaceRangeTokens(dataType.start, dataType.stop, newDataType)
 
-    def isEncodable(self, dataType):
+    def isEncodable(self, ent):
         # we check that the left hand side of an "Assignment /Initialization" is Encodable(has primitive data type)
         # we don't check for "ArrayList<>,HashMap<>,..." cause it's an "Assignment /Initialization" and these are collections
-        if dataType not in self.primitive:
+
+        if ent.varOrReturnType not in self.primitive:
+            return False
+        if ent.kind in [
+            "method",
+            "interfaceCommonBody",
+            "formalParameter",
+            "enumConstant",
+        ]:
             return False
         return True
 
