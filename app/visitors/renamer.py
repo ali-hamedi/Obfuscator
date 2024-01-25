@@ -9,30 +9,7 @@ from antlr4 import *
 from antlr4.TokenStreamRewriter import *
 
 """
-    -  Class : `Extractor`
-      -  Inherits From : `JavaParserListener` so we can parse and travers the code
-
-    - Constructor
-        - Initializes the `Extractor` instance with the current file. // for now
-
-    - Description
-        - The way of work is we access the first and primary grammar rule extracted from our java code.
-        the rule is called CompilationUnit then we traverse deeper and deeper into it where we extract our targeted entities 
-        alongside their properties and each time we traverse deeper we return the current entity as the parent entity for 
-        the next child.
-
-        - Targeted Enteties:
-
-            class  -> RuleIndex = 7 self,qualif ->for imports  /   typeIdentifier  constructor i donno
-            field  -> RuleIndex = 27 : self and primary and expression
-            method  -> RuleIndex = 20 : self, primary and expression   method call
-            formalParameter  -> RuleIndex = 47 : self and primary and expression
-            localVariable  -> RuleIndex = 80 : self and primary and expression
-            enum  -> RuleIndex = 11  : self,primary qualif ->for imports  /   typeIdentifier 
-            enumConstant  -> RuleIndex =  13 : self and primary and expression
-            interface  -> RuleIndex = 15 : self,qualif ->for imports  /   typeIdentifier 
-            interfaceCommonBody  -> RuleIndex =   35 : self and primary / defnitinon of other methods(implement)
-            constant  -> RuleIndex = 31 : self and primary 
+  
 
 """
 
@@ -49,7 +26,7 @@ class Renamer(JavaParserListener):
         self.rewriter = TokenStreamRewriter(commonTokenStream)
         self.out = []
 
-    # ------------ Rename declrations themselvs ------------
+    # Rename the import classes
     def enterImportDeclaration(self, ctx: JavaParser.ImportDeclarationContext):
         importQualifiedName = ctx.qualifiedName()
         importIdentifiers = ctx.qualifiedName().identifier()
@@ -79,6 +56,7 @@ class Renamer(JavaParserListener):
                     self.castIdentifier(importedClassIdentifier, ent)
                 return
 
+    # ------------ Rename declrations themselvs ------------
     def enterClassDeclaration(self, ctx: JavaParser.ClassDeclarationContext):
         name = ctx.identifier()
         ent = find_enteties_for_declarations(
@@ -309,8 +287,10 @@ class Renamer(JavaParserListener):
 
     # ------------ Rename refrencess (primary + expressions) ------------
     def enterExpression(self, ctx: JavaParser.ExpressionContext):
+        # minimal changes to code for easier parse on the next sections
+        # e.g 1: a +=b ---> a = a+b;
+        # e.g 2: a++ ---> a = a+1;
         self.visitExpression(ctx)
-    def exitExpression(self,ctx:JavaParser.ExpressionContext):
         if ctx.bop and ctx.bop.text in (
             "+=",
             "-=",
@@ -324,12 +304,23 @@ class Renamer(JavaParserListener):
             "<<=",
             "%=",
         ):
-            self.rewriter.replaceRangeTokens(ctx.start,ctx.stop,f"{ctx.getChild(0).getText()} = {ctx.getChild(0).getText()} {ctx.bop.text.split('=')[0]} {ctx.getChild(2).getText()}")
+            self.rewriter.replaceRangeTokens(
+                ctx.start,
+                ctx.stop,
+                f"{ctx.getChild(0).getText()} = {ctx.getChild(0).getText()} {ctx.bop.text.split('=')[0]} {ctx.getChild(2).getText()}",
+            )
         elif ctx.postfix and ctx.postfix.text in ("++", "--"):
-            self.rewriter.replaceRangeTokens(ctx.start,ctx.stop, f"{ctx.expression()[0].getText()} = {ctx.expression()[0].getText()} {ctx.postfix.text[0]} 1")
+            self.rewriter.replaceRangeTokens(
+                ctx.start,
+                ctx.stop,
+                f"{ctx.expression()[0].getText()} = {ctx.expression()[0].getText()} {ctx.postfix.text[0]} 1",
+            )
         elif ctx.prefix and ctx.prefix.text in ("++", "--"):
-            self.rewriter.replaceRangeTokens(ctx.start,ctx.stop, f"{ctx.expression()[0].getText()} = {ctx.expression()[0].getText()} {ctx.prefix.text[0]} 1")
-
+            self.rewriter.replaceRangeTokens(
+                ctx.start,
+                ctx.stop,
+                f"{ctx.expression()[0].getText()} = {ctx.expression()[0].getText()} {ctx.prefix.text[0]} 1",
+            )
 
     def visitExpression(self, ctx: JavaParser.ExpressionContext):
         if ctx.primary():
@@ -342,6 +333,9 @@ class Renamer(JavaParserListener):
             return self.resolveMemberAccess(ctx)
 
         elif ctx.methodCall():
+            if ctx.methodCall().arguments().expressionList():
+                for exp in ctx.methodCall().arguments().expressionList().expression():
+                    self.visitExpression(exp)
             return self.matchIdentifier(ctx.methodCall(), "methodCall")
 
         elif ctx.LBRACK() and ctx.RBRACK():
@@ -365,6 +359,11 @@ class Renamer(JavaParserListener):
                 elif child.expression():
                     self.visitExpression(ctx.primary().expression())
             elif child and isinstance(child, JavaParser.MethodCallContext):
+                if ctx.methodCall().arguments().expressionList():
+                    for exp in (
+                        ctx.methodCall().arguments().expressionList().expression()
+                    ):
+                        self.visitExpression(exp)
                 self.matchIdentifier(child, "methodCall")
 
     # priority :
@@ -375,6 +374,7 @@ class Renamer(JavaParserListener):
     #   extended,implemented
 
     def matchIdentifier(self, ctx, type):
+        # main function to match the ctx with it's correspanding entity in the Database
         name = None
         result = None
         if type == "methodCall":
@@ -422,6 +422,7 @@ class Renamer(JavaParserListener):
                     self.castIdentifier(ctx, result)
                     return result
         # inheritance
+        # implement/extend
         temp_ent = None
         ent = find_class_by_fileName(
             self.currentFile.replace(".java", ""), self.allClasses
@@ -465,6 +466,7 @@ class Renamer(JavaParserListener):
                     if temp_ent:
                         self.castIdentifier(name, temp_ent)
                         return
+        # Global refrences; without importing and ...
         if type == "primary":
             ent = self.handleTypeIdentifiers(
                 ctx.identifier(), ctx.identifier().getText()
@@ -525,11 +527,12 @@ class Renamer(JavaParserListener):
 
     # ------------ Resolve and Rename member accesses ------------
     def resolveMemberAccess(self, ctx):
-        # print("member : ", ctx.getText())
         members = self.memberFinder(ctx)
         self.extractList(members, True)
 
     def memberFinder(self, ctx):
+        # extract all the members
+        # e.g : a.b.c --> a, b, c
         members = []
         for child in ctx.getChildren():
             if child.getText() != ".":
@@ -549,6 +552,11 @@ class Renamer(JavaParserListener):
         isFirstIteration,
         entity_from_last_iteration=None,
     ):
+        # steps:
+        # 1- finding the entity for the most left member like any other entity usuage
+        # 2- finding the entity for the second member based on the first
+        # 3- repeating until we have a primary type entity
+        # 4- recursive
         left = parts[0]
         right = parts[1:]
 
@@ -606,6 +614,9 @@ class Renamer(JavaParserListener):
         )
 
         if isinstance(left, JavaParser.MethodCallContext):
+            if left.arguments().expressionList():
+                for exp in left.arguments().expressionList().expression():
+                    self.visitExpression(exp)
             name = left.identifier().getText()
 
             ent = find_enteties_for_members(name, parentEntity, "method")
@@ -681,7 +692,9 @@ class Renamer(JavaParserListener):
             ):
                 class_parents = class_parent_ent.get_metadata()["implementList"]
                 for class_parent in class_parents:
-                    class_parent_ent = find_class_by_fileName(class_parent, self.allClasses)
+                    class_parent_ent = find_class_by_fileName(
+                        class_parent, self.allClasses
+                    )
                     for kind in kinds:
                         temp_ent = find_enteties_from_parent_class(
                             name.getText(), class_parent_ent, kind
@@ -693,6 +706,6 @@ class Renamer(JavaParserListener):
 
     # ------------ Utility Functions ------------
     def castIdentifier(self, ctx, result):
-        # adding filters
-
-        self.rewriter.replaceSingleToken(ctx.start,result.newName)
+        # the main function wich takes the ctx and the correspadning entity
+        # and rename the context with the entitys new name which genrated automatically and randomly
+        ctx.start.text = result.newName

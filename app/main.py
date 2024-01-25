@@ -2,7 +2,7 @@ import os
 from antlr4 import *
 from os import walk, path
 
-from app.visitors.executer import Executer
+from app.executer import Executer
 from app.data.db import *
 
 __projectName = "project2"   

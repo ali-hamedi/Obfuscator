@@ -16,7 +16,7 @@ import os
 
 
 class Encryptor(JavaParserListener):
-    def __init__(self, currentFile: str, commonTokenStream, usedClasses, key, iv):
+    def __init__(self, currentFile: str, usedClasses, key, iv, commonTokenStream):
         self.currentFile = currentFile
         self.rewriter = TokenStreamRewriter(commonTokenStream)
         self.type_to_transform = {
@@ -152,7 +152,7 @@ class Encryptor(JavaParserListener):
         ancestor = None
         if isinstance(ctx.parentCtx, JavaParser.ConstantDeclaratorContext):
             # constDeclaration -> constantDeclarator -> variableInitializer
-            name = parentCtx.identifier().getText()
+            name = ctx.parentCtx.identifier().getText()
             ancestor = ctx.parentCtx.parentCtx
         elif isinstance(ctx.parentCtx, JavaParser.VariableDeclaratorContext):
             # field/local variable -> variableDeclarators -> variableDeclarator -> variableInitializer
@@ -381,7 +381,7 @@ class Encryptor(JavaParserListener):
 
         ent = None
         if isFirstIteration:
-            ent = find_renamed_enteties_for_type_identifier(left_name, self.usedClasses)
+            ent = find_enteties_for_type_identifier(left_name, self.usedClasses)
             if ent is None:
                 ent = self.visitExpression(left)
         else:
@@ -420,9 +420,9 @@ class Encryptor(JavaParserListener):
 
         if isinstance(left, JavaParser.MethodCallContext):
             name = left.identifier().getText()
-            ent = find_renamed_enteties_for_members(name, parentEntity, "method")
+            ent = find_enteties_for_members(name, parentEntity, "method")
             if ent is None:
-                ent = find_renamed_enteties_for_members(
+                ent = find_enteties_for_members(
                     name, parentEntity, "interfaceCommonBody"
                 )
             if ent:
@@ -436,14 +436,14 @@ class Encryptor(JavaParserListener):
                     and left.RBRACK()
                 ):
                     name = left.getText()
-                    ent = find_renamed_enteties_for_members(
+                    ent = find_enteties_for_members(
                         name, parentEntity, entity_type, True
                     )
                     if ent:
                         return ent
                 elif isinstance(left, JavaParser.IdentifierContext):
                     name = left.getText()
-                    ent = find_renamed_enteties_for_members(
+                    ent = find_enteties_for_members(
                         name,
                         parentEntity,
                         entity_type,
@@ -481,7 +481,7 @@ class Encryptor(JavaParserListener):
                 class_parent = class_parent_ent.get_metadata()["extend"]
                 class_parent_ent = find_class_by_fileName(class_parent, self.allClasses)
                 for kind in kinds:
-                    temp_ent = find_renamed_enteties_from_parent_class(
+                    temp_ent = find_enteties_from_parent_class(
                         name.getText(), class_parent_ent, kind
                     )
                     if temp_ent:
@@ -497,7 +497,7 @@ class Encryptor(JavaParserListener):
                         class_parent, self.allClasses
                     )
                     for kind in kinds:
-                        temp_ent = find_renamed_enteties_from_parent_class(
+                        temp_ent = find_enteties_from_parent_class(
                             name.getText(), class_parent_ent, kind
                         )
                         if temp_ent:

@@ -50,7 +50,7 @@ def clear_database():
 def find_enteties_for_array(name, current_file, start_line, stop_line, kind):
     return (
         Entity.select()
-        .where(Entity.name == name)
+        .where((Entity.name == name)|(Entity.newName== name))
         .where(Entity.fileName == current_file)
         .where(Entity.varOrReturnType.contains("[]"))
         .where(Entity.kind == kind)
@@ -72,7 +72,7 @@ def find_enteties_for_primary(name, current_file, start_line, stop_line, kind):
     if kind == "localVariable" or kind == "formalParameter":
         return (
             Entity.select()
-            .where(Entity.name == name)
+            .where((Entity.name == name)|(Entity.newName== name))
             .where(Entity.fileName == current_file)
             .where(Entity.kind == kind)
             .where(Entity.startLine <= start_line)
@@ -90,7 +90,7 @@ def find_enteties_for_primary(name, current_file, start_line, stop_line, kind):
     else:
         return (
             Entity.select()
-            .where(Entity.name == name)
+            .where((Entity.name == name)|(Entity.newName== name))
             .where(Entity.fileName == current_file)
             .where(Entity.kind == kind)
             .where(Entity.startLine <= start_line)
@@ -104,7 +104,7 @@ def find_enteties_for_methodCall(name, current_file):
     return (
         Entity.select()
         .where(
-            (Entity.name == name)
+            ((Entity.name == name)|(Entity.newName== name))
             & (Entity.fileName == current_file)
             & ((Entity.kind == "method") | (Entity.kind == "interfaceCommonBody"))
         )
@@ -116,7 +116,7 @@ def find_enteties_for_methodCall(name, current_file):
 def find_enteties_for_declarations(name, current_file, start_line, stop_line, kind):
     return (
         Entity.select()
-        .where((Entity.name == name))
+        .where(((Entity.name == name)|(Entity.newName== name)))
         .where(Entity.fileName == current_file)
         .where(Entity.kind == kind)
         .where(Entity.startLine == start_line)
@@ -129,7 +129,7 @@ def find_enteties_for_imports(name, import_file_name):
     return (
         Entity.select()
         .where(
-            (Entity.name == name)
+            ((Entity.name == name)|(Entity.newName== name))
             & (
                 (Entity.kind == "class")
                 | (Entity.kind == "enum")
@@ -145,7 +145,7 @@ def find_enteties_for_type_identifier(name, accepted_files):
     return (
         Entity.select()
         .where(
-            (Entity.name == name)
+            ((Entity.name == name)|(Entity.newName== name))
             & (
                 (Entity.kind == "class")
                 | (Entity.kind == "enum")
@@ -161,7 +161,7 @@ def find_enteties_for_global_identifier(name, accepted_files):
     return (
         Entity.select()
         .where(
-            (Entity.name == name)
+            ((Entity.name == name)|(Entity.newName== name))
             & (
                 (Entity.kind == "class")
                 | (Entity.kind == "enum")
@@ -179,7 +179,7 @@ def find_enteties_for_members(name, parentEntity, kind, isArray=False):
     if isArray:
         return (
             Entity.select()
-            .where(Entity.name == name)
+            .where((Entity.name == name)|(Entity.newName== name))
             .where(Entity.fileName == parentEntity.fileName)
             .where(Entity.kind == kind)
             .where(Entity.parent == parentEntity)
@@ -189,7 +189,7 @@ def find_enteties_for_members(name, parentEntity, kind, isArray=False):
     elif kind == "method":
         return (
             Entity.select()
-            .where(Entity.name == name)
+            .where((Entity.name == name)|(Entity.newName== name))
             .where(Entity.fileName == parentEntity.fileName)
             .where((Entity.kind == "method") | (Entity.kind == "interfaceCommonBody"))
             .where(Entity.parent == parentEntity)
@@ -198,7 +198,7 @@ def find_enteties_for_members(name, parentEntity, kind, isArray=False):
     else:
         return (
             Entity.select()
-            .where(Entity.name == name)
+            .where((Entity.name == name)|(Entity.newName== name))
             .where(Entity.fileName == parentEntity.fileName)
             .where(Entity.parent == parentEntity)
             .where(Entity.kind == kind)
@@ -226,7 +226,7 @@ def find_class_by_fileName(name, accepted_files):
     result = (
         Entity.select()
         .where(
-            (Entity.name == name)
+            ((Entity.name == name)|(Entity.newName== name))
             & (
                 (Entity.kind == "class")
                 | (Entity.kind == "enum")
@@ -242,7 +242,7 @@ def find_class_by_fileName(name, accepted_files):
         result = (
             Entity.select()
             .where(
-                (Entity.name == name)
+                ((Entity.name == name)|(Entity.newName== name))
                 & (
                     (Entity.kind == "class")
                     | (Entity.kind == "enum")
@@ -258,7 +258,7 @@ def find_enteties_from_parent_class(name, parent_entity, kind):
     if kind == "method":
         return (
             Entity.select()
-            .where(Entity.name == name)
+            .where((Entity.name == name)|(Entity.newName== name))
             .where(Entity.parent == parent_entity)
             .where(
                 Entity.parent_id.in_(
@@ -273,7 +273,7 @@ def find_enteties_from_parent_class(name, parent_entity, kind):
     else:
         return (
             Entity.select()
-            .where(Entity.name == name)
+            .where((Entity.name == name)|(Entity.newName== name))
             .where(Entity.parent == parent_entity)
             .where(
                 Entity.parent_id.in_(
@@ -291,7 +291,7 @@ def find_constructor_name_based_on_class(name):
     return (
         Entity.select()
         .where(
-            (Entity.name == name)
+            ((Entity.name == name)|(Entity.newName== name))
             & (
                 (Entity.kind == "class")
                 | (Entity.kind == "enum")
@@ -310,134 +310,4 @@ def get_all_type_declarations():
             | (Entity.kind == "enum")
             | (Entity.kind == "interface")
         )
-    )
-
-
-def find_renamed_enteties_for_array(name, current_file, start_line, stop_line, kind):
-    return (
-        Entity.select()
-        .where(Entity.newName == name)
-        .where(Entity.fileName == current_file)
-        .where(Entity.varOrReturnType.contains("[]"))
-        .where(Entity.kind == kind)
-        .where(Entity.startLine <= start_line)
-        .where(
-            Entity.parent_id.in_(
-                Entity.select(Entity.id)
-                .where(Entity.startLine <= start_line)
-                .where(Entity.stopLine >= stop_line)
-                .alias("subquery")
-            )
-        )
-        .order_by(Entity.startLine.desc())
-        .first()
-    )
-
-
-def find_renamed_enteties_for_primary(name, current_file, start_line, stop_line, kind):
-    if kind == "localVariable" or kind == "formalParameter":
-        return (
-            Entity.select()
-            .where(Entity.newName == name)
-            .where(Entity.fileName == current_file)
-            .where(Entity.kind == kind)
-            .where(Entity.startLine <= start_line)
-            .where(
-                Entity.parent_id.in_(
-                    Entity.select(Entity.id)
-                    .where(Entity.startLine <= start_line)
-                    .where(Entity.stopLine >= stop_line)
-                    .alias("subquery")
-                )
-            )
-            .order_by(Entity.startLine.desc())
-            .first()
-        )
-    else:
-        return (
-            Entity.select()
-            .where(Entity.newName == name)
-            .where(Entity.fileName == current_file)
-            .where(Entity.kind == kind)
-            .where(Entity.startLine <= start_line)
-            .order_by(Entity.startLine.desc())
-            .first()
-        )
-
-
-def find_renamed_enteties_from_parent_class(name, parent_entity, kind):
-    return (
-        Entity.select()
-        .where(Entity.newName == name)
-        .where(Entity.parent == parent_entity)
-        .where(
-            Entity.parent_id.in_(
-                Entity.select(Entity.id)
-                .where(Entity.fileName == parent_entity.fileName)
-                .alias("subquery")
-            )
-        )
-        .where(Entity.kind == kind)
-        .first()
-    )
-
-
-def find_renamed_enteties_for_type_identifier(name, accepted_files):
-    return (
-        Entity.select()
-        .where(
-            (Entity.newName == name)
-            & (
-                (Entity.kind == "class")
-                | (Entity.kind == "enum")
-                | (Entity.kind == "interface")
-            )
-            & (Entity.fileName << accepted_files)
-        )
-        .first()
-    )
-
-
-def find_renamed_enteties_for_members(name, parentEntity, kind, isArray=False):
-    if isArray:
-        return (
-            Entity.select()
-            .where(Entity.newName == name)
-            .where(Entity.fileName == parentEntity.fileName)
-            .where(Entity.kind == kind)
-            .where(Entity.parent == parentEntity)
-            .where(Entity.varOrReturnType.contains("[]"))
-            .first()
-        )
-    elif kind == "method":
-        return (
-            Entity.select()
-            .where(Entity.newName == name)
-            .where(Entity.fileName == parentEntity.fileName)
-            .where((Entity.kind == "method") | (Entity.kind == "interfaceCommonBody"))
-            .where(Entity.parent == parentEntity)
-            .first()
-        )
-    else:
-        return (
-            Entity.select()
-            .where(Entity.newName == name)
-            .where(Entity.fileName == parentEntity.fileName)
-            .where(Entity.parent == parentEntity)
-            .where(Entity.kind == kind)
-            .first()
-        )
-
-
-def find_renamed_enteties_for_methodCall(name, current_file):
-    # todo : signature
-    return (
-        Entity.select()
-        .where(
-            (Entity.newName == name)
-            & (Entity.fileName == current_file)
-            & ((Entity.kind == "method") | (Entity.kind == "interfaceCommonBody"))
-        )
-        .order_by(Entity.startLine.desc())
-        .first()
     )
