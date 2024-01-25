@@ -27,6 +27,7 @@ public class Usercontroller {
         for (int i = 0; i < Database.users.size(); i++) {
             if (email.equals(Database.users.get(i).getEmail())) {
                 emailFaound = i;
+                System.out.println(password);
             }
         }
         if (emailFaound == -1) {

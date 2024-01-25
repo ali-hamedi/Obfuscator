@@ -8,11 +8,6 @@ public class PrePrintedStrings {
 
     public static final String START_MENU = "=================================================\n";
 
-    public static final String STARTING_MENU = """
-            =================================================
-            |                                               |
-            |         Welcome to Coursera Program           |
-            |                                               |
-            =================================================""";
+    public static final String STARTING_MENU = "=================================================|Welcome to Coursera Program|=================================================";
 
 }

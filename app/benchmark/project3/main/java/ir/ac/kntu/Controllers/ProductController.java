@@ -3,7 +3,7 @@ package ir.ac.kntu.Controllers;
 import ir.ac.kntu.Models.Product;
 
 import java.util.ArrayList;
-
+import java.util.Arrays;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -14,7 +14,7 @@ public class ProductController {
     public static ArrayList<Product> inventory = new ArrayList<>();
 
     public static void categorizeByType(String typeOfProduct) {
-        if (!List.of(JSONReader.typeList).contains(typeOfProduct)) {
+        if (Arrays.asList(JSONReader.typeList).contains(typeOfProduct)) {
             System.out.println("Invalid type of product !");
             return;
         }

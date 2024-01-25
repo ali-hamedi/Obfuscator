@@ -325,7 +325,11 @@ class Renamer(JavaParserListener):
             "%=",
         ):
             self.rewriter.replaceRangeTokens(ctx.start,ctx.stop,f"{ctx.getChild(0).getText()} = {ctx.getChild(0).getText()} {ctx.bop.text.split('=')[0]} {ctx.getChild(2).getText()}")
-        
+        elif ctx.postfix and ctx.postfix.text in ("++", "--"):
+            self.rewriter.replaceRangeTokens(ctx.start,ctx.stop, f"{ctx.expression()[0].getText()} = {ctx.expression()[0].getText()} {ctx.postfix.text[0]} 1")
+        elif ctx.prefix and ctx.prefix.text in ("++", "--"):
+            self.rewriter.replaceRangeTokens(ctx.start,ctx.stop, f"{ctx.expression()[0].getText()} = {ctx.expression()[0].getText()} {ctx.prefix.text[0]} 1")
+
 
     def visitExpression(self, ctx: JavaParser.ExpressionContext):
         if ctx.primary():

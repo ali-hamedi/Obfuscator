@@ -4,6 +4,7 @@ import ir.ac.kntu.JsonGenerator;
 import ir.ac.kntu.Models.Product;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.regex.MatchResult;
@@ -53,13 +54,13 @@ public class JSONReader {
         String productionDate = matcher.group("productionDate");
         String expirationDate = matcher.group("expirationDate");
 
-        if (List.of(proteinGoodsList).contains(productName))
+        if (Arrays.asList(proteinGoodsList).contains(productName))
             typeOfProduct = "protein";
-        else if (List.of(diaryGoodsList).contains(productName))
+        else if (Arrays.asList(proteinGoodsList).contains(productName))
             typeOfProduct = "diary";
-        else if (List.of(drinkGoodsList).contains(productName))
+        else if (Arrays.asList(proteinGoodsList).contains(productName))
             typeOfProduct = "drink";
-        else if (List.of(sanitaryGoodsList).contains(productName))
+        else if (Arrays.asList(proteinGoodsList).contains(productName))
             typeOfProduct = "sanitary";
         else
             typeOfProduct = "junkFood";

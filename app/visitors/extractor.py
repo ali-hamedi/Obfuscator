@@ -251,7 +251,7 @@ class Extractor:
                     parameter,
                     new_method_entity,
                 )
-        if isConstructor or isInterfaceCommonBody or (ctx.methodBody() is None )or(ctx.methodBody().block() is None):
+        if isConstructor or (ctx.methodBody() is None ) or (ctx.methodBody().block() is None):
             return
 
         # extracting entities from the method body

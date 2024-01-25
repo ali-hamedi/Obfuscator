@@ -1,5 +1,7 @@
 import os
 import time
+import secrets
+import subprocess
 from os import path, walk
 from antlr4 import *
 from app.visitors.extractor import Extractor
@@ -112,6 +114,8 @@ class Executer:
             ] = renamer.rewriter.getDefaultText()
 
     def encryptEnteties(self):
+        iv = secrets.token_bytes(16).hex()
+        key = secrets.token_bytes(16).hex()
         for i in range(len(self.fileNames)):
             # read the java file,tokenize it,parse it Then walk into the AST
             input_text = self.filesTokenStreamDict[self.fileNames[i]]
@@ -126,6 +130,8 @@ class Executer:
                 self.fileNames[i],
                 stream,
                 self.filePackageConfDict[self.fileNames[i]]["relatedFiles"],
+                key,
+                iv,
             )
             walker = ParseTreeWalker()
             walker.walk(encryptor, tree)
@@ -137,6 +143,14 @@ class Executer:
                 self.fileNames[i],
                 self.fileNewNamesDict[self.fileNames[i]],
             )
+        keyAndIV = key + "." + iv
+        passArray = [97, 97, 97, 97, 97, 97, 97, 97, 97, 97, 97, 97, 97, 97, 97, 97]
+        self.compile_and_run_java(
+            os.path.join(os.path.dirname(__file__), "helper", "jos.jar"),
+            keyAndIV,
+            self.filePaths[0].replace(self.projectName, "output"),
+            passArray,
+        )
 
     # ------------------ Utitility Fucntions ----------------------
 
@@ -169,3 +183,14 @@ class Executer:
         except IOError:
             print("Something went wronged reading the file")
         return context.read()
+
+    def compile_and_run_java(self, path, keyAndIV, pathToSave, passArray):
+        try:
+            command = ["java", "-jar", path, keyAndIV, pathToSave] + list(
+                map(str, passArray)
+            )
+
+            # Run the Java program
+            subprocess.run(command, text=True, check=True)
+        except Exception as e:
+            print("An error occurred:", e)

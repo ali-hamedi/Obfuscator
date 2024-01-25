@@ -7,11 +7,11 @@ import ir.ac.kntu.util.ScannerWrapper;
 import ir.ac.kntu.recourses.userTypes.Customer;
 import ir.ac.kntu.recourses.userTypes.Guest;
 
-public class Logging implements Menu{
+public class Logging implements Menu {
 
     private static Logging instance = new Logging();
 
-    private Logging(){
+    private Logging() {
 
     }
 
@@ -31,14 +31,14 @@ public class Logging implements Menu{
     @Override
     public Menu handleMenu() {
         String input = ScannerWrapper.getInstance().next();
-        if (input.equals("Login")){
+        if (input.equals("Login")) {
             System.out.println("Enter your username : ");
             String username = ScannerWrapper.getInstance().next();
-            if (UsersStorage.findByName(username)!=null){
+            if (UsersStorage.findByName(username) != null) {
                 System.out.println("Enter your password : ");
                 String password = ScannerWrapper.getInstance().next();
                 User foundedUser = UsersStorage.findByName(username);
-                if (foundedUser.getPassword().equals(password)){
+                if (foundedUser.getPassword().equals(password)) {
                     Main.setLoggedInUser(foundedUser);
                     return returnMenu(foundedUser);
                 }
@@ -64,9 +64,9 @@ public class Logging implements Menu{
             Main.setLoggedInUser(newUser);
             return CustomerMenu.getInstance();
         } else if (input.equals("Continue_as_guest")) {
-            Main.setLoggedInUser(new Guest("guest","#","#","#","#","#"));
+            Main.setLoggedInUser(new Guest("guest", "#", "#", "#", "#", "#"));
             return GuestMenu.getInstance();
-        } else if (input.equals("Exit")){
+        } else if (input.equals("Exit")) {
             System.exit(0);
         } else {
             System.out.println("Wrong input");
@@ -75,17 +75,17 @@ public class Logging implements Menu{
         return Logging.getInstance();
     }
 
-    private Menu returnMenu(User foundedUser){
-        switch (foundedUser.getUserType()){
-            case ADMIN -> {
+    private Menu returnMenu(User foundedUser) {
+        switch (foundedUser.getUserType()) {
+            case ADMIN:
                 return AdminMenu.getInstance();
-            }
-            case CUSTOMER -> {
+
+            case CUSTOMER:
                 return CustomerMenu.getInstance();
-            }
-            default -> {
+
+            default:
                 return GuestMenu.getInstance();
-            }
+
         }
     }
 }

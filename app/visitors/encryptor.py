@@ -11,29 +11,31 @@ from cryptography.hazmat.primitives import padding
 from base64 import b64encode, b64decode
 import base64
 import secrets, itertools, re
+import subprocess
+import os
 
 
 class Encryptor(JavaParserListener):
-    def __init__(self, currentFile: str, commonTokenStream, usedClasses):
+    def __init__(self, currentFile: str, commonTokenStream, usedClasses, key, iv):
         self.currentFile = currentFile
         self.rewriter = TokenStreamRewriter(commonTokenStream)
         self.type_to_transform = {
             # "String": "MyCipher.getInstance().decode({})",
-            "String": "Main.decode({})",
-            # "int": "Integer.parseInt(MyCipher.getInstance().decode({}))",
-            "int": "Integer.parseInt(Main.decode({}))",
-            # "float": "Float.parseFloat(MyCipher.getInstance().decode({}))",
-            "float": "Float.parseFloat(Main.decode({}))",
-            # "double": "Double.parseDouble(MyCipher.getInstance().decode({}))",
-            "double": "Double.parseDouble(Main.decode({}))",
-            # "char": "MyCipher.getInstance().decode({}).charAt(0)",
-            "char": "Main.decode({}).charAt(0)",
-            # "boolean": "Boolean.parseBoolean(MyCipher.getInstance().decode({}))",
-            "boolean": "Boolean.parseBoolean(Main.decode({}))",
-            # "long": "Long.parseLong(MyCipher.getInstance().decode({}))",
-            "long": "Long.parseLong(Main.decode({}))",
-            # "short": "Short.parseShort(MyCipher.getInstance().decode({}))",
-            "short": "Short.parseShort(Main.decode({}))",
+            "String": "MyCipher.getInstance().decode({})",
+            "int": "Integer.parseInt(MyCipher.getInstance().decode({}))",
+            "Integer": "Integer.parseInt(MyCipher.getInstance().decode({}))",
+            "float": "Float.parseFloat(MyCipher.getInstance().decode({}))",
+            "Float": "Float.parseFloat(MyCipher.getInstance().decode({}))",
+            "double": "Double.parseDouble(MyCipher.getInstance().decode({}))",
+            "Double": "Double.parseDouble(MyCipher.getInstance().decode({}))",
+            "char": "MyCipher.getInstance().decode({}).charAt(0)",
+            "Character": "MyCipher.getInstance().decode({}).charAt(0)",
+            "boolean": "Boolean.parseBoolean(MyCipher.getInstance().decode({}))",
+            "Boolean": "Boolean.parseBoolean(MyCipher.getInstance().decode({}))",
+            "long": "Long.parseLong(MyCipher.getInstance().decode({}))",
+            "Long": "Long.parseLong(MyCipher.getInstance().decode({}))",
+            "short": "Short.parseShort(MyCipher.getInstance().decode({}))",
+            "Short": "Short.parseShort(MyCipher.getInstance().decode({}))",
         }
         self.primitive = (
             "String",
@@ -54,6 +56,19 @@ class Encryptor(JavaParserListener):
         )
         self.usedClasses = usedClasses
         self.allClasses = get_all_type_declarations()
+        self.key = key
+        self.iv = iv
+
+    def enterCompilationUnit(self, ctx: JavaParser.CompilationUnitContext):
+        if ctx.importDeclaration() and len(ctx.importDeclaration()) > 0:
+            tempCtx = ctx.importDeclaration()[len(ctx.importDeclaration()) - 1]
+            self.rewriter.insertAfterToken(
+                tempCtx.stop, "\nimport ir.ac.kntu.MyCipher;\n"
+            )
+        elif ctx.packageDeclaration():
+            self.rewriter.insertAfterToken(
+                ctx.packageDeclaration().stop, "\nimport ir.ac.kntu.MyCipher;\n"
+            )
 
     # ----------------- handle inline literals -----------------------
     def enterLiteral(self, ctx: JavaParser.LiteralContext):
@@ -140,17 +155,14 @@ class Encryptor(JavaParserListener):
         elif isinstance(ctx.parentCtx, JavaParser.VariableDeclaratorContext):
             # field/local variable -> variableDeclarators -> variableDeclarator -> variableInitializer
             ancestor = ctx.parentCtx.parentCtx.parentCtx
-        elif isinstance(ctx.parentCtx, JavaParser.VariableInitializerContext):
-            #  variablieIntilizer -> arrayIntilizer -> variablieIntilizer
-            # todo : check array intilizer
-            return self.handleInitializations(ctx.parentCtx)
+        
+        # VariableIntializer -> ArrayIntilizer -> VariableIntializer
+        if ctx.arrayInitializer():
+            return
+        if isinstance(ctx.parentCtx, JavaParser.ArrayInitializerContext):
+            return
 
         self.modifyDataType(ancestor.typeType())
-
-        if ctx.arrayInitializer():
-            for varInitlizer in ctx.arrayInitializer().variableInitializer():
-                self.handleInitializations(varInitlizer)
-            return
 
         self.handleRightSide(
             ctx.expression(), self.isEncodable(ancestor.typeType().getText())
@@ -160,18 +172,23 @@ class Encryptor(JavaParserListener):
     def handleAssignments(self, ctx: JavaParser.ExpressionContext):
         left = ctx.getChild(0)
         right = ctx.getChild(2)
-
         ent = self.visitExpression(left)
-
         if ent:
-            self.handleRightSide(right, self.isEncodable(ent.varOrReturnType))
+            if ent.kind not in [
+                "method",
+                "interfaceCommonBody",
+                "formalParameter",
+                "enumConstant",
+            ]:
+                self.handleRightSide(right, self.isEncodable(ent.varOrReturnType))
+            else:
+                self.handleRightSide(right, False)
 
     def handleRightSide(self, ctx: JavaParser.ExpressionContext, isEncoable=False):
         ## exceptions/filters
         #   - new keyword -> casting/creating object/initializing new collections
         if ctx.NEW():
             self.modifyDataType(ctx.creator())
-            return
 
         if ctx.getChildCount() == 1:
             ## case of a = b
@@ -180,27 +197,27 @@ class Encryptor(JavaParserListener):
                 return self.encodeLiteral(ctx.primary().literal())
             elif ctx.primary() and ctx.primary().identifier():
                 # a = primary -> a = primary : skip
-                # exception constructors
-                t = ctx
-                while t.parentCtx:
-                    if (
-                        isinstance(t, JavaParser.ConstructorDeclarationContext)
-                        and isEncoable
-                    ):
-                        self.rewriter.insertBeforeToken(ctx.start, "String.valueOf(")
-                        self.rewriter.insertAfterToken(ctx.stop, ")")
-                        return
-                    t = t.parentCtx
-                return
+                # exception etters(primary -> formalParameter)
+                ent = self.matchIdentifier(ctx.primary(), "primary")
+                if ent and ent.kind == "formalParameter" and isEncoable:
+                    self.rewriter.insertBeforeToken(
+                        ctx.start, "MyCipher.getInstance().encode("
+                    )
+                    self.rewriter.insertAfterToken(ctx.stop, ")")
+                    return
             elif ctx.methodCall() and isEncoable:
                 # a = methodCall -> a = encode(methodCall)
-                self.rewriter.insertBeforeToken(ctx.start, "String.valueOf(")
+                self.rewriter.insertBeforeToken(
+                    ctx.start, "MyCipher.getInstance().encode("
+                )
                 self.rewriter.insertAfterToken(ctx.stop, ")")
             elif ctx.bop and ctx.bop.text == ".":
                 # a = memberAccess -> a = encode(resolve.memberAccess)
                 self.resolveMemberAccess(ctx)
                 if isEncoable:
-                    self.rewriter.insertBeforeToken(ctx.start, "String.valueOf(")
+                    self.rewriter.insertBeforeToken(
+                        ctx.start, "MyCipher.getInstance().encode("
+                    )
                     self.rewriter.insertAfterToken(ctx.stop, ")")
             return
 
@@ -219,7 +236,7 @@ class Encryptor(JavaParserListener):
         if isEncoable:
             self.rewriter.insertBeforeToken(
                 ctx.start,
-                "String.valueOf(",
+                "MyCipher.getInstance().encode(",
             )
             self.rewriter.insertAfterToken(ctx.stop, ")")
 
@@ -228,14 +245,7 @@ class Encryptor(JavaParserListener):
     def enterExpression(self, ctx: JavaParser.ExpressionContext):
         ## special Cases :
         #  1- prefix & postfix(++,--) / switch-case statemets
-        if ctx.postfix and ctx.postfix.text in ("++", "--"):
-            ctx.start.text = f"{ctx.expression()[0].getText()} = {ctx.expression()[0].getText()} {ctx.postfix.text[0]} 1"
-            ctx.postfix.text = ""
-
-        elif ctx.prefix and ctx.prefix.text in ("++", "--"):
-            ctx.start.text = f"{ctx.expression()[0].getText()} = {ctx.expression()[0].getText()}{ctx.prefix.text[0]} 1"
-            ctx.prefix.text = ""
-
+        #! done in renaming
         # 2- avoid modifying the case statments cause "case expressions must be constant expressions"
         t = ctx
         while t.parentCtx:
@@ -306,7 +316,8 @@ class Encryptor(JavaParserListener):
         if (
             ent
             and self.isEncodable(ent.varOrReturnType)
-            and ent.kind not in ["method", "interfaceCommonBody"]
+            and ent.kind
+            not in ["method", "interfaceCommonBody", "formalParameter", "enumConstant"]
             and encode
         ):
             for token_type, transform_format in self.type_to_transform.items():
@@ -593,10 +604,17 @@ class Encryptor(JavaParserListener):
             if result.varOrReturnType and token_type == result.varOrReturnType.replace(
                 "[]", ""
             ):
-                self.rewriter.replaceSingleToken(
-                    ctx.parentCtx.start,
-                    transform_format.format(ctx.parentCtx.getText()),
-                )
+                t = ctx
+                # access array member:
+                if ctx.parentCtx.getText()[-1] == "]":
+                    t = ctx.parentCtx
+                elif ctx.parentCtx.parentCtx.getText()[-1] == "]":
+                    t = ctx.parentCtx.parentCtx
+                else:
+                    return
+                temp = transform_format.format("|")
+                t.start.text = temp.split("|")[0] + t.start.text
+                t.stop.text = t.stop.text + temp.split("|")[1]
                 return
         return
 
@@ -729,9 +747,13 @@ class Encryptor(JavaParserListener):
         return nodes
 
     def encodeLiteral(self, ctx: JavaParser.LiteralContext, decodeAndParse=False):
+        text = ctx.getText()
         varOrReturnType = None
         if ctx.STRING_LITERAL():
             varOrReturnType = "String"
+            text = ctx.getText()[1:-1]
+            if text.startswith("\\u"):
+                return
         elif ctx.integerLiteral():
             varOrReturnType = "int"
         elif ctx.floatLiteral():
@@ -744,8 +766,7 @@ class Encryptor(JavaParserListener):
         # avoid null literals
         if ctx.NULL_LITERAL():
             return
-
-        encryptedValue = aes_encrypt(ctx.getText())
+        encryptedValue = self.aes_encrypt(text)
         if decodeAndParse:
             for token_type, transform_format in self.type_to_transform.items():
                 if token_type == varOrReturnType and varOrReturnType:
@@ -753,35 +774,18 @@ class Encryptor(JavaParserListener):
         else:
             ctx.start.text = f'"{encryptedValue}"'
 
+    def aes_encrypt(self, plaintext):
+        key_hex = self.key
+        key = bytes.fromhex(key_hex)
 
-def generate_random_key():
-    return b"a" * 16  # Use bytes instead of a string for the key
+        iv_hex = self.iv
+        iv = bytes.fromhex(iv_hex)
 
+        cipher = Cipher(algorithms.AES(key), modes.CFB(iv))
 
-def aes_encrypt(plaintext):
-    key = generate_random_key()
+        # Encrypt the input string
+        encryptor = cipher.encryptor()
+        ciphertext = encryptor.update(plaintext.encode()) + encryptor.finalize()
 
-    # Generate a random initialization vector (IV)
-    iv = b"a" * 16  # Use bytes instead of a string for the IV
-
-    # Encode the plaintext string to bytes using UTF-8 encoding
-    plaintext_bytes = plaintext.encode("utf-8")
-
-    # Pad the plaintext using PKCS7 padding
-    padder = padding.PKCS7(128).padder()
-    padded_data = padder.update(plaintext_bytes) + padder.finalize()
-
-    # Create an AES cipher object
-    cipher = Cipher(algorithms.AES(key), modes.CFB(iv), backend=default_backend())
-    encryptor = cipher.encryptor()
-
-    # Encrypt the padded data
-    ciphertext = encryptor.update(padded_data) + encryptor.finalize()
-
-    # Combine IV and ciphertext for transport/storage
-    encrypted_data = iv + ciphertext
-
-    # Return the base64-encoded encrypted data
-    return base64.b64encode(encrypted_data).decode("utf-8")  # Base64 encode the result
-
-
+        ciphertext_hex = ciphertext.hex()
+        return ciphertext_hex

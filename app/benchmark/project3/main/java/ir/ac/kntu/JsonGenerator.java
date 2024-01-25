@@ -6,12 +6,13 @@ import java.util.Random;
 public class JsonGenerator {
     private StringBuilder json;
     private Random rand;
-    static final String[] typeList = {"junkFood", "drink", "diary", "sanitary", "protein"};
-    static final String[] proteinGoodsList = {"beef", "chicken", "turkey", "sausage", "fish", "egg"};
-    static final String[] diaryGoodsList = {"milk", "cheese", "yogurt", "cream", "dough", "Curd"};
-    static final String[] drinkGoodsList = {"coke", "hype", "delester", "hotChocolate", "coffee", "tea"};
-    static final String[] sanitaryGoodsList = {"handWash", "shampoo", "tissue", "faceWash", "bodyWash", "washingPowder"};
-    static final String[] junkFoodGoodsList = {"chips", "pofak", "tokhme", "popCorn", "lavashak", "chocolate"};
+    static final String[] typeList = { "junkFood", "drink", "diary", "sanitary", "protein" };
+    static final String[] proteinGoodsList = { "beef", "chicken", "turkey", "sausage", "fish", "egg" };
+    static final String[] diaryGoodsList = { "milk", "cheese", "yogurt", "cream", "dough", "Curd" };
+    static final String[] drinkGoodsList = { "coke", "hype", "delester", "hotChocolate", "coffee", "tea" };
+    static final String[] sanitaryGoodsList = { "handWash", "shampoo", "tissue", "faceWash", "bodyWash",
+            "washingPowder" };
+    static final String[] junkFoodGoodsList = { "chips", "pofak", "tokhme", "popCorn", "lavashak", "chocolate" };
 
     public JsonGenerator() {
         json = new StringBuilder();
@@ -22,7 +23,6 @@ public class JsonGenerator {
         generateRandomTypes();
         return json.toString();
     }
-
 
     private void generateRandomTypes() {
         json.append("{");
@@ -66,18 +66,26 @@ public class JsonGenerator {
         String price = generateRandomPrice(type);
         String pDate = generateRandomPDate();
         String eDate = generateRandomEDate(pDate, type);
-        json.append("\"").append(item).append("\":{\"price\":\"").append(price).append("\",\"quantity\":\"").append(rand.nextInt(150) + 15).append("\",\"productionDate\":\"").append(pDate).append("\",\"expirationDate\":\"").append(eDate).append("\"},");
+        json.append("\"").append(item).append("\":{\"price\":\"").append(price).append("\",\"quantity\":\"")
+                .append(rand.nextInt(150) + 15).append("\",\"productionDate\":\"").append(pDate)
+                .append("\",\"expirationDate\":\"").append(eDate).append("\"},");
     }
 
     private String generateRandomPrice(String type) {
-        return switch (type) {
-            case "junkFood" -> String.valueOf(rand.nextInt(55000) + 20000);
-            case "drink" -> String.valueOf(rand.nextInt(40000) + 25000);
-            case "diary" -> String.valueOf(rand.nextInt(150000) + 50000);
-            case "sanitary" -> String.valueOf(rand.nextInt(200000) + 60000);
-            case "protein" -> String.valueOf(rand.nextInt(300000) + 100000);
-            default -> "error";
-        };
+        switch (type) {
+            case "junkFood":
+                return String.valueOf(rand.nextInt(55000) + 20000);
+            case "drink":
+                return String.valueOf(rand.nextInt(40000) + 25000);
+            case "diary":
+                return String.valueOf(rand.nextInt(150000) + 50000);
+            case "sanitary":
+                return String.valueOf(rand.nextInt(200000) + 60000);
+            case "protein":
+                return String.valueOf(rand.nextInt(300000) + 100000);
+            default:
+                return "error";
+        }
     }
 
     private String generateRandomPDate() {
