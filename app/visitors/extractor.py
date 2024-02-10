@@ -381,7 +381,7 @@ class Extractor:
 
     def forStatementFinder(self, ctx):
         # recursive method to find all the forStaements deep down a context
-        #todo : consider othe code blocks
+        # todo : consider othe code blocks
         nodes = []
         if isinstance(ctx, TerminalNode):
             return nodes

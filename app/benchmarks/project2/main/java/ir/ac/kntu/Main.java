@@ -1,11 +1,13 @@
 package ir.ac.kntu;
 
+import java.util.ArrayList;
 import java.util.Scanner;
 
 import ir.ac.kntu.views.Exerciseview;
 import ir.ac.kntu.views.Questionview;
 import ir.ac.kntu.views.Userview;
 import ir.ac.kntu.controller.Usercontroller;
+import ir.ac.kntu.data.models.User;
 import ir.ac.kntu.views.Courseview;
 import ir.ac.kntu.views.View;
 
@@ -16,6 +18,17 @@ public class Main {
         Usercontroller.register("ali", "ali", "ali@gmail.com", "123", 123, 123);
         Usercontroller.register("mmd", "mmd", "mmd@gmail.com", "123", 456, 456);
         Usercontroller.register("meti", "meti", "meti@gmail.com", "123", 456, 456);
+        ArrayList<Integer> arr = new ArrayList<>();
+        arr.add(5);
+        arr.remove(0);
+        arr.add(4);
+        arr.set(0, 6);
+        arr.add(41);
+        int a = 5;
+        arr.add(a);
+        ArrayList<ArrayList<Integer>> arr2 = new ArrayList<>();
+        arr2.add(arr);
+
         while (true) {
             mainFunc();
         }

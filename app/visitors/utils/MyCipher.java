@@ -30,7 +30,7 @@ public class MyCipher {
     }
 
     public String decode(String ciphertextHex) {
-        if(ciphertextHex==null){
+        if (ciphertextHex == null) {
             return "0";
         }
         try {

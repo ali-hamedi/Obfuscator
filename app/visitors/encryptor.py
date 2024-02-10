@@ -250,9 +250,7 @@ class Encryptor(JavaParserListener):
     # ------------ Resolve and Rename member accesses ------------
 
     def enterExpression(self, ctx: JavaParser.ExpressionContext):
-        ## special Cases :
-        #  1- prefix & postfix(++,--) / switch-case statemets
-        #! done in renaming
+        ## special cases
         # 2- avoid modifying the case statments cause "case expressions must be constant expressions"
         t = ctx
         while t.parentCtx:
@@ -647,46 +645,6 @@ class Encryptor(JavaParserListener):
             "Character",
             "Boolean",
         )
-        other = [
-            # List Implementations:
-            "ArrayList<{}>",
-            "LinkedList<{}>",
-            "Vector<{}>",
-            # Set Implementations:
-            "HashSet<{}>",
-            "LinkedHashSet<{}>",
-            "TreeSet<{}>",
-            # Queue Implementations:
-            "LinkedList<{}>",
-            "PriorityQueue<{}>",
-            # Map Implementations:
-            "HashMap<{}>",
-            "LinkedHashMap<{}>",
-            "TreeMap<{}>",
-            "Hashtable<{}>",
-            # Other Collections:
-            "Stack<{}>",
-            "Deque<{}>",
-            "ArrayDeque<{}>",
-            # Interfaces:
-            "List<{}>",
-            "Set<{}>",
-            "Queue<{}>",
-            # "Map<{}, {}>",
-            "Deque<{}>",
-            "Collection<{}>",
-            "Iterable<{}>",
-        ]
-
-        combinations = set()
-        for element1 in primitiveUpperCase:
-            for element2 in other:
-                combinations.add(element2.format(element1))
-
-        # ArrayList<Integer
-        combinationsIntilizer = [
-            item for item in combinations if dataType.getText() == item
-        ]
 
         # int[x] char[xyz] ...
         pattern = r"(?:{})\[.*\]".format("|".join(map(re.escape, primitive)))
@@ -701,12 +659,10 @@ class Encryptor(JavaParserListener):
 
         if (dataType.getText() not in primitive) and (
             dataType.getText() not in [f"{p}[]" for p in primitive]
-            and (dataType.getText() not in combinations)
-            and not combinationsIntilizer
             and not re.search(pattern, dataType.getText())
-            # todo :  and not match_found
         ):
             return
+            
         newDataType = dataType.getText()
         for elemnt in primitive:
             newDataType = newDataType.replace(elemnt, "String")

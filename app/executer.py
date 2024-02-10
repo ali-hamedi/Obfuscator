@@ -100,7 +100,7 @@ class Executer:
         # encryption step
         print("Encrypting Begin ...")
         startingTime = time.time()
-        # self.encryptEnteties()
+        self.encryptEnteties()
         endingTime = time.time()
         print(f"Encrypted in   {endingTime - startingTime}\n")
 

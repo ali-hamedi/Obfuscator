@@ -304,10 +304,11 @@ class Renamer(JavaParserListener):
             "<<=",
             "%=",
         ):
+            ctx.bop.text = ctx.bop.text.split('=')[0]
             self.rewriter.replaceRangeTokens(
-                ctx.start,
-                ctx.stop,
-                f"{ctx.getChild(0).getText()} = {ctx.getChild(0).getText()} {ctx.bop.text.split('=')[0]} {ctx.getChild(2).getText()}",
+                ctx.getChild(0).start,
+                ctx.getChild(0).stop,
+                f"{ctx.getChild(0).getText()} = {ctx.getChild(0).getText()}",
             )
         elif ctx.postfix and ctx.postfix.text in ("++", "--"):
             self.rewriter.replaceRangeTokens(
@@ -321,21 +322,20 @@ class Renamer(JavaParserListener):
                 ctx.stop,
                 f"{ctx.expression()[0].getText()} = {ctx.expression()[0].getText()} {ctx.prefix.text[0]} 1",
             )
+    
 
     def visitExpression(self, ctx: JavaParser.ExpressionContext):
+
+        if ctx.bop and ctx.bop.text == ".":
+            return self.resolveMemberAccess(ctx)
+
         if ctx.primary():
             if ctx.primary().identifier():
                 return self.matchIdentifier(ctx.primary(), "primary")
             elif ctx.primary().expression():
                 return self.visitExpression(ctx.primary().expression())
 
-        elif ctx.bop and ctx.bop.text == ".":
-            return self.resolveMemberAccess(ctx)
-
         elif ctx.methodCall():
-            if ctx.methodCall().arguments().expressionList():
-                for exp in ctx.methodCall().arguments().expressionList().expression():
-                    self.visitExpression(exp)
             return self.matchIdentifier(ctx.methodCall(), "methodCall")
 
         elif ctx.LBRACK() and ctx.RBRACK():
@@ -359,11 +359,6 @@ class Renamer(JavaParserListener):
                 elif child.expression():
                     self.visitExpression(ctx.primary().expression())
             elif child and isinstance(child, JavaParser.MethodCallContext):
-                if ctx.methodCall().arguments().expressionList():
-                    for exp in (
-                        ctx.methodCall().arguments().expressionList().expression()
-                    ):
-                        self.visitExpression(exp)
                 self.matchIdentifier(child, "methodCall")
 
     # priority :
@@ -372,6 +367,7 @@ class Renamer(JavaParserListener):
     #   field,constant
     #   type idens
     #   extended,implemented
+    #   gloabl variable
 
     def matchIdentifier(self, ctx, type):
         # main function to match the ctx with it's correspanding entity in the Database
@@ -416,7 +412,6 @@ class Renamer(JavaParserListener):
                         ctx.stop.line,
                         entity_type,
                     )
-
                 # If a matching result is found, cast the identifier and return
                 if result:
                     self.castIdentifier(ctx, result)
@@ -614,9 +609,6 @@ class Renamer(JavaParserListener):
         )
 
         if isinstance(left, JavaParser.MethodCallContext):
-            if left.arguments().expressionList():
-                for exp in left.arguments().expressionList().expression():
-                    self.visitExpression(exp)
             name = left.identifier().getText()
 
             ent = find_enteties_for_members(name, parentEntity, "method")
@@ -708,4 +700,5 @@ class Renamer(JavaParserListener):
     def castIdentifier(self, ctx, result):
         # the main function wich takes the ctx and the correspadning entity
         # and rename the context with the entitys new name which genrated automatically and randomly
+        # self.rewriter.replaceSingleToken(ctx.start,result.newName)
         ctx.start.text = result.newName
