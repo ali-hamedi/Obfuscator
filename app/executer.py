@@ -1,5 +1,6 @@
 import os
 import time
+import shutil
 import secrets
 import subprocess
 
@@ -63,9 +64,10 @@ class Executer:
 
     def __init__(self, projectName):
         self.projectName = projectName
-        self.projectPath = os.path.join(
-            os.path.dirname(__file__), "benchmarks", self.projectName, "main"
-        )
+        benchmarks = os.path.join(os.path.dirname(os.path.abspath(__file__)), "benchmarks")
+        self.projectPath = os.path.join(benchmarks, self.projectName, "main")
+        # generated files mirror the project layout under benchmarks/output/main
+        self.outputPath = os.path.join(benchmarks, "output", "main")
         self.filePaths = []
         self.fileNames = []
         self.projectPackages = []
@@ -77,7 +79,11 @@ class Executer:
 
     def execute(self):
         # extracting file names and paths
+        if not os.path.isdir(self.projectPath):
+            raise FileNotFoundError(f"Project directory not found: {self.projectPath}")
         file_paths_arr, file_names_arr = self.extractFilePaths(self.projectPath)
+        if not file_names_arr:
+            raise ValueError(f"No .java files found under {self.projectPath}")
         self.filePaths = file_paths_arr
         self.fileNames = file_names_arr
 
@@ -210,7 +216,7 @@ class Executer:
         # 3. passing the path which we want our populated files(key.text,serlized,...) to be written
         keyAndIV = self.key + "." + self.iv
         passArray = [97, 97, 97, 97, 97, 97, 97, 97, 97, 97, 97, 97, 97, 97, 97, 97]
-        pathToStoreFiles = self.filePaths[0].replace(self.projectName, "output")
+        pathToStoreFiles = self.toOutputPath(self.filePaths[0])
         self.runJavaFile(
             os.path.join(os.path.dirname(__file__), "visitors", "utils", "jos.jar"),
             keyAndIV,
@@ -220,11 +226,15 @@ class Executer:
 
     def writeJavaFile(self, filePath, fileContent, newFileName):
         javaFileName = f"{newFileName}.java"
-        writePath = filePath.replace(self.projectName, "output")
-        if not os.path.exists(writePath):
-            os.makedirs(writePath)
-        with open(os.path.join(writePath, javaFileName), "w") as java_file:
+        writePath = self.toOutputPath(filePath)
+        os.makedirs(writePath, exist_ok=True)
+        with open(os.path.join(writePath, javaFileName), "w", encoding="utf-8") as java_file:
             java_file.write(fileContent)
+
+    def toOutputPath(self, filePath):
+        # map a directory inside the input project to the same place in the output tree
+        relative = os.path.relpath(filePath, self.projectPath)
+        return os.path.normpath(os.path.join(self.outputPath, relative))
 
     def extractFilePaths(self, path: str):
         # we use os.walk function to traverse down the project directory
@@ -233,8 +243,9 @@ class Executer:
         file_paths_arr = []
 
         w = walk(path)
-        for dirpath, _, filenames in w:
-            for filename in filenames:
+        for dirpath, dirnames, filenames in w:
+            dirnames.sort()  # deterministic traversal order
+            for filename in sorted(filenames):
                 if filename.endswith(".java"):
                     file_names_arr.append(filename)
                     file_paths_arr.append(dirpath)
@@ -242,22 +253,28 @@ class Executer:
         return file_paths_arr, file_names_arr
 
     def readJavaFile(self, filepath: str):
-        context = None
-        readingJavaFile = filepath
         try:
-            context = open(readingJavaFile, "r")
-        except IOError:
-            print("Something went wronged reading the file")
-        return context.read()
+            with open(filepath, "r", encoding="utf-8") as java_file:
+                return java_file.read()
+        except OSError as e:
+            raise OSError(f"Could not read Java source file {filepath}: {e}") from e
 
     def runJavaFile(self, path, keyAndIV, pathToSave, passArray):
-        try:
-            # intilizing the command
-            command = ["java", "-jar", path, keyAndIV, pathToSave] + list(
-                map(str, passArray)
+        if shutil.which("java") is None:
+            raise RuntimeError(
+                "A Java runtime ('java') is required to generate the key-handling files "
+                "but was not found on PATH."
             )
-
-            # Run the Java program
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"Key-handling helper not found: {path}")
+        # intilizing the command
+        command = ["java", "-jar", path, keyAndIV, pathToSave] + list(
+            map(str, passArray)
+        )
+        # Run the Java program
+        try:
             subprocess.run(command, text=True, check=True)
-        except Exception as e:
-            print("An error occurred:", e)
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(
+                f"Key-handling helper failed with exit code {e.returncode}"
+            ) from e

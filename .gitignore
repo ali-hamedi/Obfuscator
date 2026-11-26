@@ -176,3 +176,10 @@ __pypackages__/
 
 # pycache
 __pycache__/
+
+# Generated artifacts (future runs; files already tracked are unaffected)
+*.db
+*.class
+*.p12
+*.jks
+.venv/

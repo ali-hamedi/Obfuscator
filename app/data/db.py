@@ -1,6 +1,4 @@
-from peewee import SqliteDatabase
 from peewee import fn
-from os import path
 from app.data.models.ent import Entity
 
 """
@@ -11,21 +9,19 @@ from app.data.models.ent import Entity
 
 # ---------------- primary functions ------------------
 def initialize_database():
-    clear_database()
-    # Define the database connection
-    db = SqliteDatabase("obfuscator.db")
-
-    # Connect to the database
-    db.connect()
-
-    # Create tables if they don't exist
+    # Use the database the Entity model is bound to (obfuscator.db in the
+    # current working directory), create the table if needed, then empty it
+    # so each run starts from a clean entity index.
+    db = Entity._meta.database
+    if db.is_closed():
+        db.connect()
     db.create_tables([Entity])
-
-    # Additional initialization logic if needed
+    clear_database()
 
 
 def close_database():
     # Close the database connection
+    db = Entity._meta.database
     if not db.is_closed():
         clear_database()
         db.close()
